@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { formatCurrency } from '@/lib/currency'
-import { Button } from '@/components/ui/button'
 import {
   Table,
   TableBody,
@@ -12,14 +11,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { MoreHorizontal, FileText, Trash2, CheckCircle, XCircle } from 'lucide-react'
-import { deleteQuote, updateQuote, convertQuoteToInvoice } from '@/lib/actions/quotes'
+import { DocumentActions } from '@/components/document-actions'
+import { deleteQuote, updateQuote, convertQuoteToInvoice, duplicateQuote } from '@/lib/actions/quotes'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 
@@ -31,7 +24,7 @@ interface Quote {
   status: string
   total: number
   currency_code: string
-  clients: { name: string }
+  clients: { name: string; email?: string }
 }
 
 interface QuotesTableProps {
@@ -51,8 +44,6 @@ export function QuotesTable({ quotes }: QuotesTableProps) {
   const [loading, setLoading] = useState<string | null>(null)
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce devis ?')) return
-
     setLoading(id)
     const result = await deleteQuote(id)
     setLoading(null)
@@ -79,8 +70,6 @@ export function QuotesTable({ quotes }: QuotesTableProps) {
   }
 
   const handleConvertToInvoice = async (id: string) => {
-    if (!confirm('Voulez-vous convertir ce devis en facture ?')) return
-
     setLoading(id)
     const result = await convertQuoteToInvoice(id)
     setLoading(null)
@@ -90,6 +79,19 @@ export function QuotesTable({ quotes }: QuotesTableProps) {
     } else {
       toast.success('Devis converti en facture')
       router.push('/invoices')
+    }
+  }
+
+  const handleDuplicate = async (id: string) => {
+    setLoading(id)
+    const result = await duplicateQuote(id)
+    setLoading(null)
+
+    if (result.error) {
+      toast.error(result.error)
+    } else {
+      toast.success('Devis dupliqué')
+      router.refresh()
     }
   }
 
@@ -136,48 +138,20 @@ export function QuotesTable({ quotes }: QuotesTableProps) {
                     {formatCurrency(Number(quote.total), quote.currency_code)}
                   </TableCell>
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={loading === quote.id}
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleConvertToInvoice(quote.id)}>
-                          <FileText className="mr-2 h-4 w-4" />
-                          Convertir en facture
-                        </DropdownMenuItem>
-                        {quote.status === 'draft' && (
-                          <DropdownMenuItem onClick={() => handleStatusChange(quote.id, 'sent')}>
-                            <CheckCircle className="mr-2 h-4 w-4" />
-                            Marquer comme envoyé
-                          </DropdownMenuItem>
-                        )}
-                        {quote.status === 'sent' && (
-                          <>
-                            <DropdownMenuItem onClick={() => handleStatusChange(quote.id, 'accepted')}>
-                              <CheckCircle className="mr-2 h-4 w-4" />
-                              Marquer comme accepté
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleStatusChange(quote.id, 'declined')}>
-                              <XCircle className="mr-2 h-4 w-4" />
-                              Marquer comme refusé
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                        <DropdownMenuItem
-                          onClick={() => handleDelete(quote.id)}
-                          className="text-red-600"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Supprimer
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <DocumentActions
+                      type="quote"
+                      document={{
+                        id: quote.id,
+                        number: quote.number,
+                        status: quote.status,
+                        client_email: quote.clients.email,
+                        client_name: quote.clients.name,
+                      }}
+                      onStatusChange={(status) => handleStatusChange(quote.id, status)}
+                      onDelete={() => handleDelete(quote.id)}
+                      onDuplicate={() => handleDuplicate(quote.id)}
+                      onConvertToInvoice={() => handleConvertToInvoice(quote.id)}
+                    />
                   </TableCell>
                 </TableRow>
               )

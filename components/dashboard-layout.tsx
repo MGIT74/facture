@@ -14,7 +14,7 @@ import {
   CreditCard,
   Settings,
   LogOut,
-  Plus,
+  BarChart3,
 } from 'lucide-react'
 import { signOut } from '@/lib/actions/auth'
 import { useCompany } from '@/lib/context/company-context'
@@ -26,6 +26,7 @@ const navigation = [
   { name: 'Devis', href: '/quotes', icon: FileText },
   { name: 'Factures', href: '/invoices', icon: Receipt },
   { name: 'Paiements', href: '/payments', icon: CreditCard },
+  { name: 'Rapports', href: '/reports', icon: BarChart3 },
   { name: 'Paramètres', href: '/settings', icon: Settings },
 ]
 

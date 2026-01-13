@@ -133,6 +133,7 @@ export async function createQuote(companyId: string, data: {
 
 export async function updateQuote(id: string, updates: {
   status?: string
+  sent_at?: string
 }) {
   const supabase = await createClient()
 
@@ -149,6 +150,72 @@ export async function updateQuote(id: string, updates: {
 
   revalidatePath('/quotes')
   return { data: quote }
+}
+
+export async function duplicateQuote(quoteId: string) {
+  const supabase = await createClient()
+
+  const { data: quote } = await supabase
+    .from('quotes')
+    .select('*, quote_lines(*)')
+    .eq('id', quoteId)
+    .maybeSingle()
+
+  if (!quote) {
+    return { error: 'Quote not found' }
+  }
+
+  const number = await generateQuoteNumber(quote.company_id)
+  const issueDate = new Date().toISOString().split('T')[0]
+  const expiryDate = new Date()
+  expiryDate.setDate(expiryDate.getDate() + 30)
+
+  const { data: newQuote, error: quoteError } = await supabase
+    .from('quotes')
+    .insert({
+      company_id: quote.company_id,
+      client_id: quote.client_id,
+      number,
+      status: 'draft',
+      currency_code: quote.currency_code,
+      issue_date: issueDate,
+      expiry_date: expiryDate.toISOString().split('T')[0],
+      subtotal: quote.subtotal,
+      tax_total: quote.tax_total,
+      discount_total: quote.discount_total,
+      total: quote.total,
+      notes: quote.notes,
+      terms: quote.terms,
+    })
+    .select()
+    .single()
+
+  if (quoteError) {
+    return { error: quoteError.message }
+  }
+
+  const quoteLines = quote.quote_lines.map((line: any) => ({
+    quote_id: newQuote.id,
+    item_id: line.item_id,
+    description: line.description,
+    quantity: line.quantity,
+    unit_price: line.unit_price,
+    discount_rate: line.discount_rate,
+    tax_rate: line.tax_rate,
+    line_total: line.line_total,
+    sort_order: line.sort_order,
+  }))
+
+  const { error: linesError } = await supabase
+    .from('quote_lines')
+    .insert(quoteLines)
+
+  if (linesError) {
+    return { error: linesError.message }
+  }
+
+  revalidatePath('/quotes')
+  return { data: newQuote }
 }
 
 export async function deleteQuote(id: string) {

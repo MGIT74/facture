@@ -1,14 +1,12 @@
 'use client'
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Button } from '@/components/ui/button'
-import { MoreHorizontal, Eye, Download, Trash } from 'lucide-react'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
-import { deleteInvoice } from '@/lib/actions/invoices'
+import { DocumentActions } from '@/components/document-actions'
+import { deleteInvoice, updateInvoice } from '@/lib/actions/invoices'
 import { useRouter } from 'next/navigation'
 import { formatCurrency, formatShortDate, CurrencyCode } from '@/lib/currency'
-import Link from 'next/link'
+import { toast } from 'sonner'
 
 interface Invoice {
   id: string
@@ -18,7 +16,7 @@ interface Invoice {
   currency_code: string
   issue_date: string
   due_date: string
-  clients: { name: string } | null
+  clients: { name: string; email?: string } | null
 }
 
 const statusConfig = {
@@ -33,8 +31,25 @@ export function InvoicesTable({ invoices }: { invoices: Invoice[] }) {
   const router = useRouter()
 
   async function handleDelete(id: string) {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cette facture ?')) {
-      await deleteInvoice(id)
+    const result = await deleteInvoice(id)
+    if (result.error) {
+      toast.error(result.error)
+    } else {
+      toast.success('Facture supprimée')
+      router.refresh()
+    }
+  }
+
+  async function handleStatusChange(id: string, status: string) {
+    const updates: { status: string; paid_date?: string } = { status }
+    if (status === 'paid') {
+      updates.paid_date = new Date().toISOString().split('T')[0]
+    }
+    const result = await updateInvoice(id, updates)
+    if (result.error) {
+      toast.error(result.error)
+    } else {
+      toast.success('Statut mis à jour')
       router.refresh()
     }
   }
@@ -77,32 +92,18 @@ export function InvoicesTable({ invoices }: { invoices: Invoice[] }) {
                   <Badge className={status.color}>{status.label}</Badge>
                 </TableCell>
                 <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem asChild>
-                        <Link href={`/invoices/${invoice.id}`}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          Voir
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Download className="mr-2 h-4 w-4" />
-                        PDF
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleDelete(invoice.id)}
-                        className="text-red-600"
-                      >
-                        <Trash className="mr-2 h-4 w-4" />
-                        Supprimer
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <DocumentActions
+                    type="invoice"
+                    document={{
+                      id: invoice.id,
+                      number: invoice.number,
+                      status: invoice.status,
+                      client_email: invoice.clients?.email,
+                      client_name: invoice.clients?.name,
+                    }}
+                    onStatusChange={(status) => handleStatusChange(invoice.id, status)}
+                    onDelete={() => handleDelete(invoice.id)}
+                  />
                 </TableCell>
               </TableRow>
             )
