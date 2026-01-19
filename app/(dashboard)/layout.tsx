@@ -19,27 +19,53 @@ export default function Layout({
     const supabase = createClient()
 
     async function checkAuth() {
-      const { data: { session } } = await supabase.auth.getSession()
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
 
-      if (!session) {
-        router.replace('/login')
-        return
+        if (!session) {
+          router.replace('/login')
+          return
+        }
+
+        const { data: memberships, error: memberError } = await supabase
+          .from('company_members')
+          .select('company_id')
+          .eq('user_id', session.user.id)
+
+        if (memberError) {
+          console.error('Error fetching memberships:', memberError)
+          setIsLoading(false)
+          return
+        }
+
+        if (!memberships || memberships.length === 0) {
+          router.replace('/onboarding')
+          return
+        }
+
+        const companyIds = memberships.map(m => m.company_id)
+        const { data: userCompanies, error: companyError } = await supabase
+          .from('companies')
+          .select('*')
+          .in('id', companyIds)
+
+        if (companyError) {
+          console.error('Error fetching companies:', companyError)
+          setIsLoading(false)
+          return
+        }
+
+        if (!userCompanies || userCompanies.length === 0) {
+          router.replace('/onboarding')
+          return
+        }
+
+        setCompanies(userCompanies)
+        setIsLoading(false)
+      } catch (err) {
+        console.error('Auth check error:', err)
+        setIsLoading(false)
       }
-
-      const { data: memberships } = await supabase
-        .from('company_members')
-        .select('*, companies(*)')
-        .eq('user_id', session.user.id)
-
-      const userCompanies = memberships?.map(m => m.companies).filter(Boolean) || []
-
-      if (userCompanies.length === 0) {
-        router.replace('/onboarding')
-        return
-      }
-
-      setCompanies(userCompanies)
-      setIsLoading(false)
     }
 
     checkAuth()
