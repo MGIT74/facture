@@ -23,18 +23,31 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     let mounted = true
+    let timeoutId: NodeJS.Timeout
 
     async function initAuth() {
+      timeoutId = setTimeout(() => {
+        if (mounted) {
+          console.error('Auth timeout')
+          setIsLoading(false)
+        }
+      }, 8000)
+
       try {
-        const { data: { session } } = await supabase.auth.getSession()
+        const { data: { user: currentUser }, error } = await supabase.auth.getUser()
         if (!mounted) return
 
-        if (session?.user) {
-          setUser(session.user)
+        if (error) {
+          console.error('Auth error:', error)
+        }
+
+        if (currentUser) {
+          setUser(currentUser)
         }
       } catch (err) {
         console.error('Auth error:', err)
       } finally {
+        clearTimeout(timeoutId)
         if (mounted) {
           setIsLoading(false)
         }
@@ -55,6 +68,7 @@ export default function OnboardingPage() {
 
     return () => {
       mounted = false
+      clearTimeout(timeoutId)
       subscription.unsubscribe()
     }
   }, [])

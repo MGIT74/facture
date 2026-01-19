@@ -21,18 +21,27 @@ export default function Layout({
     initialized.current = true
 
     const supabase = createClient()
+    let timeoutId: NodeJS.Timeout
 
     async function checkAuth() {
       try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        timeoutId = setTimeout(() => {
+          console.error('Auth check timeout')
+          setError('Le chargement a pris trop de temps. Veuillez rafraichir la page.')
+          setIsLoading(false)
+        }, 10000)
 
-        if (sessionError) {
-          console.error('Session error:', sessionError)
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+
+        if (userError) {
+          console.error('User error:', userError)
+          clearTimeout(timeoutId)
           window.location.href = '/login'
           return
         }
 
-        if (!session) {
+        if (!user) {
+          clearTimeout(timeoutId)
           window.location.href = '/login'
           return
         }
@@ -40,16 +49,18 @@ export default function Layout({
         const { data: memberships, error: memberError } = await supabase
           .from('company_members')
           .select('company_id')
-          .eq('user_id', session.user.id)
+          .eq('user_id', user.id)
 
         if (memberError) {
           console.error('Error fetching memberships:', memberError)
+          clearTimeout(timeoutId)
           setError('Erreur lors du chargement des entreprises')
           setIsLoading(false)
           return
         }
 
         if (!memberships || memberships.length === 0) {
+          clearTimeout(timeoutId)
           window.location.href = '/onboarding'
           return
         }
@@ -62,20 +73,24 @@ export default function Layout({
 
         if (companyError) {
           console.error('Error fetching companies:', companyError)
+          clearTimeout(timeoutId)
           setError('Erreur lors du chargement des entreprises')
           setIsLoading(false)
           return
         }
 
         if (!userCompanies || userCompanies.length === 0) {
+          clearTimeout(timeoutId)
           window.location.href = '/onboarding'
           return
         }
 
+        clearTimeout(timeoutId)
         setCompanies(userCompanies)
         setIsLoading(false)
       } catch (err) {
         console.error('Auth check error:', err)
+        clearTimeout(timeoutId)
         setError('Une erreur est survenue')
         setIsLoading(false)
       }
@@ -90,6 +105,7 @@ export default function Layout({
     })
 
     return () => {
+      clearTimeout(timeoutId)
       subscription.unsubscribe()
     }
   }, [])

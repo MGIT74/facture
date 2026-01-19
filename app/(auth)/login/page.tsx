@@ -19,15 +19,27 @@ export default function LoginPage() {
 
   useEffect(() => {
     let mounted = true
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const timeoutId = setTimeout(() => {
+      if (mounted) setIsCheckingAuth(false)
+    }, 5000)
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      clearTimeout(timeoutId)
       if (!mounted) return
-      if (session) {
+      if (user) {
         window.location.href = '/dashboard'
       } else {
         setIsCheckingAuth(false)
       }
+    }).catch(() => {
+      clearTimeout(timeoutId)
+      if (mounted) setIsCheckingAuth(false)
     })
-    return () => { mounted = false }
+
+    return () => {
+      mounted = false
+      clearTimeout(timeoutId)
+    }
   }, [])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
