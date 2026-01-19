@@ -24,22 +24,33 @@ export default function OnboardingPage() {
   useEffect(() => {
     let mounted = true
 
+    async function initAuth() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!mounted) return
+
+        if (session?.user) {
+          setUser(session.user)
+        }
+      } catch (err) {
+        console.error('Auth error:', err)
+      } finally {
+        if (mounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    initAuth()
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return
       if (session?.user) {
         setUser(session.user)
-        setIsLoading(false)
       } else if (event === 'SIGNED_OUT') {
+        setUser(null)
         window.location.href = '/login'
       }
-    })
-
-    supabase.auth.getUser().then(({ data: { user: currentUser } }) => {
-      if (!mounted) return
-      if (currentUser) {
-        setUser(currentUser)
-      }
-      setIsLoading(false)
     })
 
     return () => {
