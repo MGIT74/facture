@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { CompanySwitcher } from '@/components/company-switcher'
 import { Button } from '@/components/ui/button'
@@ -16,8 +16,8 @@ import {
   LogOut,
   BarChart3,
 } from 'lucide-react'
-import { signOut } from '@/lib/actions/auth'
 import { useCompany } from '@/lib/context/company-context'
+import { createClient } from '@/lib/supabase/client'
 
 const navigation = [
   { name: 'Tableau de bord', href: '/dashboard', icon: LayoutDashboard },
@@ -32,7 +32,16 @@ const navigation = [
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
   const { currentCompany, isLoading } = useCompany()
+
+  async function handleSignOut() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    localStorage.removeItem('currentCompanyId')
+    router.push('/login')
+    router.refresh()
+  }
 
   if (isLoading) {
     return (
@@ -72,16 +81,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="p-4 border-t border-gray-200">
-          <form action={signOut}>
-            <Button
-              type="submit"
-              variant="ghost"
-              className="w-full justify-start text-gray-600"
-            >
-              <LogOut className="mr-3 h-5 w-5" />
-              Déconnexion
-            </Button>
-          </form>
+          <Button
+            onClick={handleSignOut}
+            variant="ghost"
+            className="w-full justify-start text-gray-600"
+          >
+            <LogOut className="mr-3 h-5 w-5" />
+            Déconnexion
+          </Button>
         </div>
       </aside>
 

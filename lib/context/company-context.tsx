@@ -70,5 +70,8 @@ export function useCompany() {
   if (!context) {
     throw new Error('useCompany must be used within CompanyProvider')
   }
-  return context
+  return {
+    ...context,
+    selectedCompany: context.currentCompany,
+  }
 }
