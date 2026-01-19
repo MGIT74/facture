@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { CURRENCIES } from '@/lib/currency'
@@ -19,29 +19,34 @@ export default function OnboardingPage() {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
-  const supabase = useMemo(() => createClient(), [])
+  const supabase = createClient()
 
   useEffect(() => {
+    let mounted = true
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      (async () => {
-        if (session?.user) {
-          setUser(session.user)
-          setIsLoading(false)
-        } else if (event === 'SIGNED_OUT') {
-          window.location.href = '/login'
-        }
-      })()
+      if (!mounted) return
+      if (session?.user) {
+        setUser(session.user)
+        setIsLoading(false)
+      } else if (event === 'SIGNED_OUT') {
+        window.location.href = '/login'
+      }
     })
 
     supabase.auth.getUser().then(({ data: { user: currentUser } }) => {
+      if (!mounted) return
       if (currentUser) {
         setUser(currentUser)
       }
       setIsLoading(false)
     })
 
-    return () => subscription.unsubscribe()
-  }, [supabase])
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, [])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()

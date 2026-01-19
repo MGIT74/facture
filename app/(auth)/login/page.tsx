@@ -18,14 +18,17 @@ export default function LoginPage() {
   const supabase = createClient()
 
   useEffect(() => {
+    let mounted = true
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return
       if (session) {
-        router.replace('/dashboard')
+        window.location.href = '/dashboard'
       } else {
         setIsCheckingAuth(false)
       }
     })
-  }, [router, supabase])
+    return () => { mounted = false }
+  }, [])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
