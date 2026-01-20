@@ -1,16 +1,18 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+'use client'
 
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 
-export default async function HomePage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export default function HomePage() {
+  const router = useRouter()
 
-  if (user) {
-    redirect('/dashboard')
-  } else {
-    redirect('/login')
-  }
+  useEffect(() => {
+    router.replace('/dashboard')
+  }, [router])
+
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+    </div>
+  )
 }

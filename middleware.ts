@@ -1,12 +1,13 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const publicRoutes = ['/login', '/signup', '/', '/onboarding']
+const publicRoutes = ['/login', '/signup', '/onboarding']
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const isPublicRoute = publicRoutes.includes(pathname)
   const isApiRoute = pathname.startsWith('/api')
+  const isRootPath = pathname === '/'
 
   if (isPublicRoute || isApiRoute) {
     return NextResponse.next()
@@ -50,6 +51,12 @@ export async function middleware(request: NextRequest) {
     if (error || !user) {
       const url = request.nextUrl.clone()
       url.pathname = '/login'
+      return NextResponse.redirect(url)
+    }
+
+    if (isRootPath) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard'
       return NextResponse.redirect(url)
     }
   } catch (error) {
