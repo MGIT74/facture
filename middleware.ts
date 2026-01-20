@@ -4,6 +4,14 @@ import { NextResponse, type NextRequest } from 'next/server'
 const publicRoutes = ['/login', '/signup', '/', '/onboarding']
 
 export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+  const isPublicRoute = publicRoutes.includes(pathname)
+  const isApiRoute = pathname.startsWith('/api')
+
+  if (isPublicRoute || isApiRoute) {
+    return NextResponse.next()
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -36,13 +44,15 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser()
 
-  const pathname = request.nextUrl.pathname
-  const isPublicRoute = publicRoutes.includes(pathname)
-  const isApiRoute = pathname.startsWith('/api')
-
-  if (!user && !isPublicRoute && !isApiRoute) {
+    if (error || !user) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      return NextResponse.redirect(url)
+    }
+  } catch (error) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
