@@ -10,7 +10,67 @@ import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { CreditCard, Building2, Check, ExternalLink, Eye, EyeOff } from 'lucide-react'
-import { savePaymentIntegration, toggleIntegration } from '@/lib/actions/payments'
+import { createClient } from '@/lib/supabase/client'
+
+async function savePaymentIntegrationClient(data: {
+  company_id: string
+  provider: 'stripe' | 'wise'
+  is_enabled: boolean
+  config: Record<string, string>
+}) {
+  const supabase = createClient()
+
+  const { data: existing, error: selectError } = await supabase
+    .from('payment_integrations')
+    .select('id')
+    .eq('company_id', data.company_id)
+    .eq('provider', data.provider)
+    .maybeSingle()
+
+  if (selectError) throw new Error(selectError.message)
+
+  if (existing) {
+    const { error } = await supabase
+      .from('payment_integrations')
+      .update({
+        is_enabled: data.is_enabled,
+        config: data.config,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existing.id)
+
+    if (error) throw new Error(error.message)
+  } else {
+    const { data: inserted, error } = await supabase
+      .from('payment_integrations')
+      .insert({
+        company_id: data.company_id,
+        provider: data.provider,
+        is_enabled: data.is_enabled,
+        config: data.config,
+      })
+      .select()
+      .single()
+
+    if (error) throw new Error(error.message)
+    if (!inserted) throw new Error('Echec de la sauvegarde - verifiez vos permissions')
+  }
+}
+
+async function toggleIntegrationClient(companyId: string, provider: 'stripe' | 'wise', enabled: boolean) {
+  const supabase = createClient()
+
+  const { error } = await supabase
+    .from('payment_integrations')
+    .update({
+      is_enabled: enabled,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('company_id', companyId)
+    .eq('provider', provider)
+
+  if (error) throw new Error(error.message)
+}
 
 interface Integration {
   id: string
@@ -112,7 +172,7 @@ function IntegrationCard({ provider, title, description, icon, integration, comp
 
     setToggling(true)
     try {
-      await toggleIntegration(companyId, provider, enabled)
+      await toggleIntegrationClient(companyId, provider, enabled)
       if (onToggleSuccess) {
         onToggleSuccess()
       }
@@ -204,7 +264,7 @@ function StripeConfigDialog({ open, onOpenChange, companyId, integration, onSucc
     setError(null)
 
     try {
-      await savePaymentIntegration({
+      await savePaymentIntegrationClient({
         company_id: companyId,
         provider: 'stripe',
         is_enabled: true,
@@ -347,7 +407,7 @@ function WiseConfigDialog({ open, onOpenChange, companyId, integration, onSucces
     setError(null)
 
     try {
-      await savePaymentIntegration({
+      await savePaymentIntegrationClient({
         company_id: companyId,
         provider: 'wise',
         is_enabled: true,
