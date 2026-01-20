@@ -149,12 +149,14 @@ export async function savePaymentIntegration(data: {
 }) {
   const supabase = await createClient()
 
-  const { data: existing } = await supabase
+  const { data: existing, error: selectError } = await supabase
     .from('payment_integrations')
     .select('id')
     .eq('company_id', data.company_id)
     .eq('provider', data.provider)
     .maybeSingle()
+
+  if (selectError) throw new Error(selectError.message)
 
   if (existing) {
     const { error } = await supabase
@@ -166,9 +168,9 @@ export async function savePaymentIntegration(data: {
       })
       .eq('id', existing.id)
 
-    if (error) throw error
+    if (error) throw new Error(error.message)
   } else {
-    const { error } = await supabase
+    const { data: inserted, error } = await supabase
       .from('payment_integrations')
       .insert({
         company_id: data.company_id,
@@ -176,8 +178,11 @@ export async function savePaymentIntegration(data: {
         is_enabled: data.is_enabled,
         config: data.config,
       })
+      .select()
+      .single()
 
-    if (error) throw error
+    if (error) throw new Error(error.message)
+    if (!inserted) throw new Error('Echec de la sauvegarde - verifiez vos permissions')
   }
 
   revalidatePath('/payments')

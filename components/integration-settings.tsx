@@ -187,18 +187,21 @@ function StripeConfigDialog({ open, onOpenChange, companyId, integration, onSucc
   const [secretKey, setSecretKey] = useState('')
   const [publishableKey, setPublishableKey] = useState('')
   const [webhookSecret, setWebhookSecret] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (open) {
       setSecretKey(integration?.config?.secret_key || '')
       setPublishableKey(integration?.config?.publishable_key || '')
       setWebhookSecret(integration?.config?.webhook_secret || '')
+      setError(null)
     }
   }, [open, integration])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setError(null)
 
     try {
       await savePaymentIntegration({
@@ -216,8 +219,9 @@ function StripeConfigDialog({ open, onOpenChange, companyId, integration, onSucc
       } else {
         onOpenChange(false)
       }
-    } catch (error) {
-      console.error('Error saving Stripe config:', error)
+    } catch (err) {
+      console.error('Error saving Stripe config:', err)
+      setError(err instanceof Error ? err.message : 'Une erreur est survenue lors de la sauvegarde')
     } finally {
       setLoading(false)
     }
@@ -239,8 +243,14 @@ function StripeConfigDialog({ open, onOpenChange, companyId, integration, onSucc
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 rounded-lg text-sm text-red-700 border border-red-200">
+              {error}
+            </div>
+          )}
+
           <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
-            <p className="font-medium mb-1">Comment obtenir vos clés API ?</p>
+            <p className="font-medium mb-1">Comment obtenir vos cles API ?</p>
             <p className="text-blue-600">
               Rendez-vous sur{' '}
               <a
@@ -256,7 +266,7 @@ function StripeConfigDialog({ open, onOpenChange, companyId, integration, onSucc
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="publishableKey">Clé publique (Publishable key) *</Label>
+            <Label htmlFor="publishableKey">Cle publique (Publishable key) *</Label>
             <Input
               id="publishableKey"
               value={publishableKey}
@@ -321,17 +331,20 @@ function WiseConfigDialog({ open, onOpenChange, companyId, integration, onSucces
   const [showApiKey, setShowApiKey] = useState(false)
   const [apiKey, setApiKey] = useState('')
   const [profileId, setProfileId] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (open) {
       setApiKey(integration?.config?.api_key || '')
       setProfileId(integration?.config?.profile_id || '')
+      setError(null)
     }
   }, [open, integration])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setError(null)
 
     try {
       await savePaymentIntegration({
@@ -348,8 +361,9 @@ function WiseConfigDialog({ open, onOpenChange, companyId, integration, onSucces
       } else {
         onOpenChange(false)
       }
-    } catch (error) {
-      console.error('Error saving Wise config:', error)
+    } catch (err) {
+      console.error('Error saving Wise config:', err)
+      setError(err instanceof Error ? err.message : 'Une erreur est survenue lors de la sauvegarde')
     } finally {
       setLoading(false)
     }
@@ -371,6 +385,12 @@ function WiseConfigDialog({ open, onOpenChange, companyId, integration, onSucces
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 rounded-lg text-sm text-red-700 border border-red-200">
+              {error}
+            </div>
+          )}
+
           <div className="p-3 bg-green-50 rounded-lg text-sm text-green-700">
             <p className="font-medium mb-1">Comment obtenir vos identifiants API ?</p>
             <p className="text-green-600">
