@@ -27,7 +27,10 @@ async function savePaymentIntegrationClient(data: {
     .eq('provider', data.provider)
     .maybeSingle()
 
-  if (selectError) throw new Error(selectError.message)
+  if (selectError) {
+    console.error('Select error:', selectError)
+    throw new Error(`Erreur lors de la verification: ${selectError.message}`)
+  }
 
   if (existing) {
     const { error } = await supabase
@@ -39,9 +42,12 @@ async function savePaymentIntegrationClient(data: {
       })
       .eq('id', existing.id)
 
-    if (error) throw new Error(error.message)
+    if (error) {
+      console.error('Update error:', error)
+      throw new Error(`Erreur lors de la mise a jour: ${error.message}`)
+    }
   } else {
-    const { data: inserted, error } = await supabase
+    const { error } = await supabase
       .from('payment_integrations')
       .insert({
         company_id: data.company_id,
@@ -49,11 +55,11 @@ async function savePaymentIntegrationClient(data: {
         is_enabled: data.is_enabled,
         config: data.config,
       })
-      .select()
-      .single()
 
-    if (error) throw new Error(error.message)
-    if (!inserted) throw new Error('Echec de la sauvegarde - verifiez vos permissions')
+    if (error) {
+      console.error('Insert error:', error)
+      throw new Error(`Erreur lors de l'insertion: ${error.message}`)
+    }
   }
 }
 
