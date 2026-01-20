@@ -90,12 +90,12 @@ export function PaymentDialog({ open, onOpenChange, companyId, unpaidInvoices, c
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="invoice">Facture (optionnel)</Label>
-            <Select value={invoiceId} onValueChange={handleInvoiceChange}>
+            <Select value={invoiceId || 'none'} onValueChange={(val) => handleInvoiceChange(val === 'none' ? '' : val)}>
               <SelectTrigger>
                 <SelectValue placeholder="Sélectionner une facture" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Paiement sans facture</SelectItem>
+                <SelectItem value="none">Paiement sans facture</SelectItem>
                 {unpaidInvoices.map((invoice) => (
                   <SelectItem key={invoice.id} value={invoice.id}>
                     {invoice.number} - {invoice.client?.name} ({formatCurrency(invoice.balance_due, invoice.currency_code)} restant)
