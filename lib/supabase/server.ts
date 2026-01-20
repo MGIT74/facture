@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 import { Database } from '@/types/database'
 
 export async function createClient() {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
 
   return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,7 +23,6 @@ export async function createClient() {
               })
             )
           } catch {
-            // May fail in Server Components
           }
         },
       },
