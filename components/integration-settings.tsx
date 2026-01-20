@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,13 +22,24 @@ interface Integration {
 interface IntegrationSettingsProps {
   companyId: string
   integrations: Integration[]
+  onRefresh?: () => void
 }
 
-export function IntegrationSettings({ companyId, integrations }: IntegrationSettingsProps) {
+export function IntegrationSettings({ companyId, integrations, onRefresh }: IntegrationSettingsProps) {
   const [configDialog, setConfigDialog] = useState<'stripe' | 'wise' | null>(null)
+  const router = useRouter()
 
   const stripeIntegration = integrations.find(i => i.provider === 'stripe')
   const wiseIntegration = integrations.find(i => i.provider === 'wise')
+
+  const handleSuccess = () => {
+    setConfigDialog(null)
+    if (onRefresh) {
+      onRefresh()
+    } else {
+      router.refresh()
+    }
+  }
 
   return (
     <>
@@ -40,6 +52,7 @@ export function IntegrationSettings({ companyId, integrations }: IntegrationSett
           integration={stripeIntegration}
           companyId={companyId}
           onConfigure={() => setConfigDialog('stripe')}
+          onToggleSuccess={onRefresh}
           color="bg-[#635BFF]"
         />
         <IntegrationCard
@@ -50,6 +63,7 @@ export function IntegrationSettings({ companyId, integrations }: IntegrationSett
           integration={wiseIntegration}
           companyId={companyId}
           onConfigure={() => setConfigDialog('wise')}
+          onToggleSuccess={onRefresh}
           color="bg-[#9FE870]"
         />
       </div>
@@ -59,6 +73,7 @@ export function IntegrationSettings({ companyId, integrations }: IntegrationSett
         onOpenChange={(open) => !open && setConfigDialog(null)}
         companyId={companyId}
         integration={stripeIntegration}
+        onSuccess={handleSuccess}
       />
 
       <WiseConfigDialog
@@ -66,6 +81,7 @@ export function IntegrationSettings({ companyId, integrations }: IntegrationSett
         onOpenChange={(open) => !open && setConfigDialog(null)}
         companyId={companyId}
         integration={wiseIntegration}
+        onSuccess={handleSuccess}
       />
     </>
   )
@@ -79,10 +95,11 @@ interface IntegrationCardProps {
   integration?: Integration
   companyId: string
   onConfigure: () => void
+  onToggleSuccess?: () => void
   color: string
 }
 
-function IntegrationCard({ provider, title, description, icon, integration, companyId, onConfigure, color }: IntegrationCardProps) {
+function IntegrationCard({ provider, title, description, icon, integration, companyId, onConfigure, onToggleSuccess, color }: IntegrationCardProps) {
   const [toggling, setToggling] = useState(false)
   const isConfigured = integration && Object.keys(integration.config).length > 0
   const isEnabled = integration?.is_enabled || false
@@ -96,6 +113,9 @@ function IntegrationCard({ provider, title, description, icon, integration, comp
     setToggling(true)
     try {
       await toggleIntegration(companyId, provider, enabled)
+      if (onToggleSuccess) {
+        onToggleSuccess()
+      }
     } catch (error) {
       console.error('Error toggling integration:', error)
     } finally {
@@ -158,14 +178,23 @@ interface ConfigDialogProps {
   onOpenChange: (open: boolean) => void
   companyId: string
   integration?: Integration
+  onSuccess?: () => void
 }
 
-function StripeConfigDialog({ open, onOpenChange, companyId, integration }: ConfigDialogProps) {
+function StripeConfigDialog({ open, onOpenChange, companyId, integration, onSuccess }: ConfigDialogProps) {
   const [loading, setLoading] = useState(false)
   const [showSecretKey, setShowSecretKey] = useState(false)
-  const [secretKey, setSecretKey] = useState(integration?.config?.secret_key || '')
-  const [publishableKey, setPublishableKey] = useState(integration?.config?.publishable_key || '')
-  const [webhookSecret, setWebhookSecret] = useState(integration?.config?.webhook_secret || '')
+  const [secretKey, setSecretKey] = useState('')
+  const [publishableKey, setPublishableKey] = useState('')
+  const [webhookSecret, setWebhookSecret] = useState('')
+
+  useEffect(() => {
+    if (open) {
+      setSecretKey(integration?.config?.secret_key || '')
+      setPublishableKey(integration?.config?.publishable_key || '')
+      setWebhookSecret(integration?.config?.webhook_secret || '')
+    }
+  }, [open, integration])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -182,7 +211,11 @@ function StripeConfigDialog({ open, onOpenChange, companyId, integration }: Conf
           webhook_secret: webhookSecret,
         },
       })
-      onOpenChange(false)
+      if (onSuccess) {
+        onSuccess()
+      } else {
+        onOpenChange(false)
+      }
     } catch (error) {
       console.error('Error saving Stripe config:', error)
     } finally {
@@ -283,11 +316,18 @@ function StripeConfigDialog({ open, onOpenChange, companyId, integration }: Conf
   )
 }
 
-function WiseConfigDialog({ open, onOpenChange, companyId, integration }: ConfigDialogProps) {
+function WiseConfigDialog({ open, onOpenChange, companyId, integration, onSuccess }: ConfigDialogProps) {
   const [loading, setLoading] = useState(false)
   const [showApiKey, setShowApiKey] = useState(false)
-  const [apiKey, setApiKey] = useState(integration?.config?.api_key || '')
-  const [profileId, setProfileId] = useState(integration?.config?.profile_id || '')
+  const [apiKey, setApiKey] = useState('')
+  const [profileId, setProfileId] = useState('')
+
+  useEffect(() => {
+    if (open) {
+      setApiKey(integration?.config?.api_key || '')
+      setProfileId(integration?.config?.profile_id || '')
+    }
+  }, [open, integration])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -303,7 +343,11 @@ function WiseConfigDialog({ open, onOpenChange, companyId, integration }: Config
           profile_id: profileId,
         },
       })
-      onOpenChange(false)
+      if (onSuccess) {
+        onSuccess()
+      } else {
+        onOpenChange(false)
+      }
     } catch (error) {
       console.error('Error saving Wise config:', error)
     } finally {

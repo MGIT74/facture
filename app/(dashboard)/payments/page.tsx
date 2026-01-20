@@ -222,6 +222,7 @@ export default function PaymentsPage() {
             <IntegrationSettings
               companyId={selectedCompany?.id || ''}
               integrations={integrations}
+              onRefresh={loadData}
             />
           </div>
         </TabsContent>
