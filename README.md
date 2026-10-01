@@ -50,7 +50,7 @@ Mets un reverse proxy (nginx, Caddy) avec HTTPS devant, et un `JWT_SECRET` long 
 ## Déploiement Docker (xCloud, VPS…)
 Le dépôt contient un `Dockerfile` et un `docker-compose.yml` (app + MySQL 8, schéma chargé au premier démarrage).
 Variables à fournir (voir `.env.docker.example`) : `DB_PASSWORD`, `DB_ROOT_PASSWORD`, `JWT_SECRET`,
-`ADMIN_EMAIL`, `ADMIN_PASSWORD` (le premier compte admin est créé automatiquement si aucun utilisateur n'existe). L'app est publiée sur `127.0.0.1:3001`.
+`ADMIN_EMAIL`, `ADMIN_PASSWORD` (le premier compte admin est créé automatiquement si aucun utilisateur n'existe). L'app est publiée sur `127.0.0.1:3002`.
 ```bash
 cp .env.docker.example .env && docker compose up -d --build
 ```
