@@ -47,6 +47,14 @@ cd ../backend && npm start        # sert l'API ET le front sur le port 3000
 ```
 Mets un reverse proxy (nginx, Caddy) avec HTTPS devant, et un `JWT_SECRET` long et aléatoire.
 
+## Déploiement Docker (xCloud, VPS…)
+Le dépôt contient un `Dockerfile` et un `docker-compose.yml` (app + MySQL 8, schéma chargé au premier démarrage).
+Variables à fournir (voir `.env.docker.example`) : `DB_PASSWORD`, `DB_ROOT_PASSWORD`, `JWT_SECRET`,
+`ADMIN_EMAIL`, `ADMIN_PASSWORD` (le premier compte admin est créé automatiquement si aucun utilisateur n'existe), `APP_PORT`.
+```bash
+cp .env.docker.example .env && docker compose up -d --build
+```
+
 ## Structure
 ```
 database/schema.sql          schéma MySQL

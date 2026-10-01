@@ -12,6 +12,7 @@ import settingsRouter from './routes/settings.js';
 import { documentsRouter } from './routes/documents.js';
 import paymentsRouter from './routes/payments.js';
 import dashboardRouter from './routes/dashboard.js';
+import { bootstrapAdmin } from './bootstrap.js';
 
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16) {
   console.error('JWT_SECRET manquant ou trop court (16 caractères minimum). Voir .env.example');
@@ -48,4 +49,7 @@ if (fs.existsSync(dist)) {
 app.use(errorHandler);
 
 const port = Number(process.env.PORT || 3000);
-app.listen(port, () => console.log(`API Facturio sur http://localhost:${port}`));
+app.listen(port, () => {
+  console.log(`API Facturio sur http://localhost:${port}`);
+  bootstrapAdmin();
+});
