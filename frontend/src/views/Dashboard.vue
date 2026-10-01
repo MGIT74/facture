@@ -2,20 +2,24 @@
 import { ref, computed, onMounted } from 'vue';
 import api, { errMsg } from '../api.js';
 import { useAuth } from '../stores/auth.js';
-import { eur, dateFr, monthLabel } from '../utils/format.js';
+import { money, dateFr, monthLabel } from '../utils/format.js';
 import StatusBadge from '../components/StatusBadge.vue';
 
 const auth = useAuth();
 const data = ref(null);
 const error = ref('');
 
-onMounted(async () => {
+async function load(currency) {
   try {
-    data.value = (await api.get('/dashboard')).data;
+    data.value = (await api.get('/dashboard', { params: currency ? { currency } : {} })).data;
   } catch (e) {
     error.value = errMsg(e);
   }
-});
+}
+onMounted(() => load());
+
+// Les montants s'affichent dans la devise choisie (un tableau de bord par devise)
+const eur = (n) => money(n, data.value?.currency);
 
 const max = computed(() => Math.max(1, ...(data.value?.monthly.map((m) => m.amount) || [1])));
 const bars = computed(() =>
@@ -38,6 +42,9 @@ const year = new Date().getFullYear();
   <div v-if="error" class="error">{{ error }}</div>
 
   <template v-if="data">
+    <div v-if="data.currencies.length > 1" class="chips" style="margin-bottom: 14px" role="group" aria-label="Devise affichée">
+      <button v-for="c in data.currencies" :key="c" class="chip" :class="{ active: c === data.currency }" @click="load(c)">{{ c }}</button>
+    </div>
     <div class="panel kpis">
       <div class="kpi">
         <div class="label">Encaissé ce mois-ci</div>
@@ -109,7 +116,7 @@ const year = new Date().getFullYear();
               <td>{{ i.number }}</td>
               <td>{{ i.client_name }}</td>
               <td class="muted">{{ dateFr(i.issue_date) }}</td>
-              <td class="num">{{ eur(i.total) }}</td>
+              <td class="num">{{ money(i.total, i.currency) }}</td>
               <td><StatusBadge :status="i.display_status" /></td>
             </tr>
           </tbody>

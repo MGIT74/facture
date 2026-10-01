@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import api, { errMsg, openPdf } from '../api.js';
-import { eur, dateFr, todayISO, METHODS } from '../utils/format.js';
+import { money, dateFr, todayISO, METHODS } from '../utils/format.js';
 import { toast } from '../utils/toast.js';
 import StatusBadge from '../components/StatusBadge.vue';
 
@@ -12,12 +12,17 @@ const isInvoice = computed(() => props.type === 'invoice');
 const base = computed(() => (isInvoice.value ? 'invoices' : 'quotes'));
 
 const doc = ref(null);
+const loadError = ref('');
+// Montants affichés dans la devise du document
+const eur = (n) => money(n, doc.value?.currency);
 const busy = ref(false);
 const pay = ref({ amount: 0, payment_date: todayISO(), payment_method: 'bank_transfer', reference: '' });
 
 async function load() {
-  doc.value = (await api.get(`/${base.value}/${props.id}`)).data;
-  if (isInvoice.value) pay.value.amount = doc.value.balance_due;
+  try {
+    doc.value = (await api.get(`/${base.value}/${props.id}`)).data;
+    if (isInvoice.value) pay.value.amount = doc.value.balance_due;
+  } catch (e) { loadError.value = errMsg(e); }
 }
 onMounted(load);
 
@@ -62,6 +67,8 @@ const address = (o) => [o.address, [o.postal_code, o.city].filter(Boolean).join(
 </script>
 
 <template>
+  <div v-if="loadError" class="panel"><div class="empty"><strong>{{ loadError }}</strong>
+    <router-link :to="`/${base}`">Retour à la liste</router-link></div></div>
   <template v-if="doc">
     <div class="page-head">
       <div class="actions">
@@ -91,6 +98,7 @@ const address = (o) => [o.address, [o.postal_code, o.city].filter(Boolean).join(
             <div class="kind">{{ isInvoice ? 'Facture' : 'Devis' }}</div>
             <div class="muted">{{ doc.number }}</div>
             <div class="small muted" style="margin-top: 8px">
+              <div>Devise : {{ doc.currency }}</div>
               <div>Émise le {{ dateFr(doc.issue_date) }}</div>
               <div v-if="isInvoice">Échéance le {{ dateFr(doc.due_date) }}</div>
               <div v-else>Valable jusqu'au {{ dateFr(doc.valid_until) }}</div>

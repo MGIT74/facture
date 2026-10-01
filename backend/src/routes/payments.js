@@ -21,11 +21,11 @@ async function syncInvoice(conn, invoiceId) {
 }
 
 router.get('/', asyncHandler(async (req, res) => {
-  const params = [];
-  let where = '';
-  if (req.query.invoice_id) { where = 'WHERE p.invoice_id = ?'; params.push(req.query.invoice_id); }
+  const params = [req.company.id];
+  let where = 'WHERE i.company_id = ?';
+  if (req.query.invoice_id) { where += ' AND p.invoice_id = ?'; params.push(req.query.invoice_id); }
   const [rows] = await pool.query(
-    `SELECT p.*, i.number AS invoice_number, c.name AS client_name
+    `SELECT p.*, i.number AS invoice_number, i.currency, c.name AS client_name
        FROM payments p JOIN invoices i ON i.id = p.invoice_id JOIN clients c ON c.id = i.client_id
        ${where} ORDER BY p.payment_date DESC, p.id DESC LIMIT 500`, params);
   res.json(rows);
@@ -40,11 +40,11 @@ router.post('/', asyncHandler(async (req, res) => {
   if (b.payment_method && !METHODS.includes(b.payment_method)) throw new HttpError(400, 'Mode de paiement invalide');
 
   const id = await withTransaction(async (conn) => {
-    const [[inv]] = await conn.query('SELECT * FROM invoices WHERE id = ? FOR UPDATE', [b.invoice_id]);
+    const [[inv]] = await conn.query('SELECT * FROM invoices WHERE id = ? AND company_id = ? FOR UPDATE', [b.invoice_id, req.company.id]);
     if (!inv) throw new HttpError(404, 'Facture introuvable');
     if (inv.status === 'cancelled') throw new HttpError(409, 'Cette facture est annulée');
     if (amount > r2(inv.total - inv.amount_paid) + 0.005) {
-      throw new HttpError(400, `Le montant dépasse le reste à payer (${r2(inv.total - inv.amount_paid)} €)`);
+      throw new HttpError(400, `Le montant dépasse le reste à payer (${r2(inv.total - inv.amount_paid)} ${inv.currency})`);
     }
     const [r] = await conn.query('INSERT INTO payments SET ?', [{
       invoice_id: inv.id, amount, payment_date: b.payment_date || today(),
@@ -59,7 +59,7 @@ router.post('/', asyncHandler(async (req, res) => {
 
 router.delete('/:id', asyncHandler(async (req, res) => {
   await withTransaction(async (conn) => {
-    const [[p]] = await conn.query('SELECT * FROM payments WHERE id = ?', [req.params.id]);
+    const [[p]] = await conn.query('SELECT p.* FROM payments p JOIN invoices i ON i.id = p.invoice_id WHERE p.id = ? AND i.company_id = ?', [req.params.id, req.company.id]);
     if (!p) throw new HttpError(404, 'Paiement introuvable');
     await conn.query('SELECT id FROM invoices WHERE id = ? FOR UPDATE', [p.invoice_id]);
     await conn.query('DELETE FROM payments WHERE id = ?', [p.id]);

@@ -1,9 +1,11 @@
 # Facturio simple
 
 Application interne de facturation : **Vue 3 + Node.js (Express) + MySQL**.
-Version simplifiée de Facturio (Next.js + Supabase) : une seule entreprise, pas de multi-tenant.
+Version simplifiée de Facturio (Next.js + Supabase) : **plusieurs entreprises** gérées par la même équipe (sans multi-tenant), et une **devise par document**.
 
 ## Fonctionnalités
+- **Plusieurs entreprises** : chacune a ses clients, produits, devis, factures, préfixes et numérotation. On change d'entreprise depuis le menu de la barre latérale.
+- **Devises** : EUR, USD, GBP, CHF, CAD, AUD, MAD, TND, DZD, XOF, XAF, ZAR. Chaque entreprise a une devise par défaut, modifiable sur chaque devis ou facture (le PDF et le tableau de bord suivent).
 - Clients, produits et services
 - Devis → transformation en facture en un clic
 - Factures : lignes avec remise et TVA, numérotation automatique `FAC-2026-0001` (sans doublon, même en parallèle)
@@ -37,8 +39,8 @@ npm install
 npm run dev                   # http://localhost:5173
 ```
 
-Ouvre http://localhost:5173, connecte-toi, puis va dans **Paramètres** pour renseigner
-ton entreprise (nom, SIRET, IBAN, préfixes de numérotation, TVA par défaut).
+Ouvre http://localhost:5173, connecte-toi, puis va dans **Entreprises** pour renseigner
+tes entreprises (nom, SIRET, IBAN, devise, préfixes de numérotation, TVA par défaut).
 
 ## Production (un seul processus)
 ```bash
@@ -60,14 +62,20 @@ cp .env.docker.example .env && docker compose up -d --build
 database/schema.sql          schéma MySQL
 backend/src/
   index.js                   serveur Express
-  routes/                    auth, crud (clients, produits), documents (factures + devis),
-                             payments, dashboard, settings
+  routes/                    auth, companies, crud (clients, produits), documents (factures + devis),
+                             payments, dashboard
+  migrate.js                 migrations automatiques de la base
   pdf.js                     génération des PDF (pdfkit)
   utils.js                   calcul des totaux, helpers
 frontend/src/
   views/                     écrans (Dashboard, Clients, DocumentForm, DocumentView…)
   components/  stores/  utils/
 ```
+
+## Mise à jour de la base
+Au démarrage, le backend applique automatiquement les migrations nécessaires (`backend/src/migrate.js`).
+Une base créée avec l'ancienne version (une seule entreprise) est convertie sans perte : l'ancienne entreprise devient l'entreprise n°1,
+ses données et sa numérotation sont conservées.
 
 ## Ajouter un utilisateur
 ```bash

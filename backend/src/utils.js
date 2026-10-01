@@ -8,6 +8,8 @@ export class HttpError extends Error {
 export const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
+export const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'CAD', 'AUD', 'MAD', 'TND', 'DZD', 'XOF', 'XAF', 'ZAR'];
+
 export const r2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
 export const today = () => new Date().toISOString().slice(0, 10);

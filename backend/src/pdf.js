@@ -1,7 +1,7 @@
 import PDFDocument from 'pdfkit';
 
 // Helvetica (police PDF standard) ne gère pas les espaces insécables fines : on les remplace.
-const eur = (n) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' })
+const money = (n, currency = 'EUR') => new Intl.NumberFormat('fr-FR', { style: 'currency', currency })
   .format(n).replace(/[\u202f\u00a0]/g, ' ');
 const dateFr = (s) => (s ? s.split('-').reverse().join('/') : '');
 const num = (n) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(n).replace(/[\u202f\u00a0]/g, ' ');
@@ -10,6 +10,7 @@ const INK = '#16212A', MUTED = '#5E6C78', LINE = '#D8DEE3', ACCENT = '#0F5C58';
 
 export function renderPdf(res, kind, doc) {
   const isInvoice = kind === 'invoice';
+  const eur = (n) => money(n, doc.currency);
   const title = isInvoice ? 'FACTURE' : 'DEVIS';
   const pdf = new PDFDocument({ size: 'A4', margin: 50, info: { Title: `${title} ${doc.number}` } });
 

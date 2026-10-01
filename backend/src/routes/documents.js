@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { pool, withTransaction } from '../db.js';
-import { asyncHandler, HttpError, computeTotals, today, addDays, isDate } from '../utils.js';
+import { asyncHandler, HttpError, computeTotals, today, addDays, isDate, CURRENCIES } from '../utils.js';
 import { renderPdf } from '../pdf.js';
 
 // Factures et devis partagent la même logique : seule la config change.
@@ -20,13 +20,13 @@ const displayStatus = (k) => k === 'invoice'
   ? "CASE WHEN d.status = 'sent' AND d.due_date < CURDATE() THEN 'overdue' ELSE d.status END"
   : 'd.status';
 
-async function nextNumber(conn, kind, prefix, year) {
+async function nextNumber(conn, companyId, kind, prefix, year) {
   await conn.query(
-    'INSERT INTO counters (kind, year, value) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE value = value + 1',
-    [kind, year],
+    'INSERT INTO counters (company_id, kind, year, value) VALUES (?, ?, ?, 1) ON DUPLICATE KEY UPDATE value = value + 1',
+    [companyId, kind, year],
   );
   // La ligne est verrouillée par notre transaction jusqu'au commit : pas de doublon possible.
-  const [[row]] = await conn.query('SELECT value FROM counters WHERE kind = ? AND year = ?', [kind, year]);
+  const [[row]] = await conn.query('SELECT value FROM counters WHERE company_id = ? AND kind = ? AND year = ?', [companyId, kind, year]);
   return `${prefix}-${year}-${String(row.value).padStart(4, '0')}`;
 }
 
@@ -36,6 +36,12 @@ function validate(body, cfg) {
   if (body.lines.some((l) => !String(l.description || '').trim())) throw new HttpError(400, 'Chaque ligne doit avoir une description');
   if (body.issue_date && !isDate(body.issue_date)) throw new HttpError(400, "Date d'émission invalide");
   if (body[cfg.dateCol] && !isDate(body[cfg.dateCol])) throw new HttpError(400, 'Date invalide');
+  if (body.currency && !CURRENCIES.includes(body.currency)) throw new HttpError(400, 'Devise non supportée');
+}
+
+async function assertClient(conn, companyId, clientId) {
+  const [[c]] = await conn.query('SELECT id FROM clients WHERE id = ? AND company_id = ?', [clientId, companyId]);
+  if (!c) throw new HttpError(400, "Ce client n'appartient pas à cette entreprise");
 }
 
 async function insertLines(conn, cfg, docId, lines) {
@@ -44,39 +50,41 @@ async function insertLines(conn, cfg, docId, lines) {
   }
 }
 
-async function createDocument(conn, kind, body, extra = {}) {
+async function createDocument(conn, kind, company, body, extra = {}) {
   const cfg = KINDS[kind];
   validate(body, cfg);
-  const [[settings]] = await conn.query('SELECT * FROM settings WHERE id = 1');
+  await assertClient(conn, company.id, body.client_id);
   const issue = body.issue_date || today();
   const year = Number(issue.slice(0, 4));
-  const defaultDays = kind === 'invoice' ? settings.payment_terms_days : 30;
+  const defaultDays = kind === 'invoice' ? company.payment_terms_days : 30;
   const t = computeTotals(body.lines);
-  const number = await nextNumber(conn, kind, settings[cfg.prefixCol], year);
+  const number = await nextNumber(conn, company.id, kind, company[cfg.prefixCol], year);
   const [r] = await conn.query(`INSERT INTO ${cfg.table} SET ?`, [{
+    company_id: company.id,
     number,
+    currency: body.currency || company.default_currency,
     client_id: body.client_id,
     status: 'draft',
     issue_date: issue,
     [cfg.dateCol]: body[cfg.dateCol] || addDays(issue, defaultDays),
     subtotal: t.subtotal, discount_total: t.discount_total, tax_total: t.tax_total, total: t.total,
     notes: body.notes || null,
-    terms: body.terms ?? settings.default_terms ?? null,
+    terms: body.terms ?? company.default_terms ?? null,
     ...extra,
   }]);
   await insertLines(conn, cfg, r.insertId, t.lines);
   return r.insertId;
 }
 
-async function loadDocument(kind, id) {
+async function loadDocument(kind, id, companyId) {
   const cfg = KINDS[kind];
   const [[doc]] = await pool.query(
     `SELECT d.*, ${displayStatus(kind)} AS display_status, c.name AS client_name
-       FROM ${cfg.table} d JOIN clients c ON c.id = d.client_id WHERE d.id = ?`, [id]);
+       FROM ${cfg.table} d JOIN clients c ON c.id = d.client_id WHERE d.id = ? AND d.company_id = ?`, [id, companyId]);
   if (!doc) throw new HttpError(404, 'Document introuvable');
   const [lines] = await pool.query(`SELECT * FROM ${cfg.lines} WHERE ${cfg.fk} = ? ORDER BY sort_order, id`, [id]);
   const [[client]] = await pool.query('SELECT * FROM clients WHERE id = ?', [doc.client_id]);
-  const [[company]] = await pool.query('SELECT * FROM settings WHERE id = 1');
+  const [[company]] = await pool.query('SELECT * FROM companies WHERE id = ?', [doc.company_id]);
   const result = { ...doc, lines, client, company };
   if (kind === 'invoice') {
     const [payments] = await pool.query('SELECT * FROM payments WHERE invoice_id = ? ORDER BY payment_date, id', [id]);
@@ -92,8 +100,8 @@ export function documentsRouter(kind) {
 
   router.get('/', asyncHandler(async (req, res) => {
     const { status, client_id, q } = req.query;
-    const where = [];
-    const params = [];
+    const where = ['d.company_id = ?'];
+    const params = [req.company.id];
     if (status) {
       if (kind === 'invoice' && status === 'overdue') where.push("d.status = 'sent' AND d.due_date < CURDATE()");
       else if (kind === 'invoice' && status === 'sent') where.push("d.status = 'sent' AND d.due_date >= CURDATE()");
@@ -104,34 +112,35 @@ export function documentsRouter(kind) {
     const [rows] = await pool.query(
       `SELECT d.*, ${displayStatus(kind)} AS display_status, c.name AS client_name
          FROM ${cfg.table} d JOIN clients c ON c.id = d.client_id
-         ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+         WHERE ${where.join(' AND ')}
          ORDER BY d.issue_date DESC, d.id DESC LIMIT 500`, params);
     res.json(rows);
   }));
 
-  router.get('/:id', asyncHandler(async (req, res) => res.json(await loadDocument(kind, req.params.id))));
+  router.get('/:id', asyncHandler(async (req, res) => res.json(await loadDocument(kind, req.params.id, req.company.id))));
 
   router.get('/:id/pdf', asyncHandler(async (req, res) => {
-    const doc = await loadDocument(kind, req.params.id);
-    renderPdf(res, kind, doc);
+    renderPdf(res, kind, await loadDocument(kind, req.params.id, req.company.id));
   }));
 
   router.post('/', asyncHandler(async (req, res) => {
-    const id = await withTransaction((conn) => createDocument(conn, kind, req.body || {}));
-    res.status(201).json(await loadDocument(kind, id));
+    const id = await withTransaction((conn) => createDocument(conn, kind, req.company, req.body || {}));
+    res.status(201).json(await loadDocument(kind, id, req.company.id));
   }));
 
   router.put('/:id', asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     await withTransaction(async (conn) => {
-      const [[doc]] = await conn.query(`SELECT * FROM ${cfg.table} WHERE id = ? FOR UPDATE`, [id]);
+      const [[doc]] = await conn.query(`SELECT * FROM ${cfg.table} WHERE id = ? AND company_id = ? FOR UPDATE`, [id, req.company.id]);
       if (!doc) throw new HttpError(404, 'Document introuvable');
       if (doc.status !== 'draft') throw new HttpError(409, 'Seul un brouillon peut être modifié');
       const body = req.body || {};
       validate(body, cfg);
+      await assertClient(conn, req.company.id, body.client_id);
       const t = computeTotals(body.lines);
       await conn.query(`UPDATE ${cfg.table} SET ? WHERE id = ?`, [{
         client_id: body.client_id,
+        currency: body.currency || doc.currency,
         issue_date: body.issue_date || doc.issue_date,
         [cfg.dateCol]: body[cfg.dateCol] || doc[cfg.dateCol],
         subtotal: t.subtotal, discount_total: t.discount_total, tax_total: t.tax_total, total: t.total,
@@ -140,13 +149,13 @@ export function documentsRouter(kind) {
       await conn.query(`DELETE FROM ${cfg.lines} WHERE ${cfg.fk} = ?`, [id]);
       await insertLines(conn, cfg, id, t.lines);
     });
-    res.json(await loadDocument(kind, id));
+    res.json(await loadDocument(kind, id, req.company.id));
   }));
 
   router.post('/:id/status', asyncHandler(async (req, res) => {
     const { status } = req.body || {};
     if (!cfg.manualStatuses.includes(status)) throw new HttpError(400, 'Statut non autorisé');
-    const [[doc]] = await pool.query(`SELECT * FROM ${cfg.table} WHERE id = ?`, [req.params.id]);
+    const [[doc]] = await pool.query(`SELECT * FROM ${cfg.table} WHERE id = ? AND company_id = ?`, [req.params.id, req.company.id]);
     if (!doc) throw new HttpError(404, 'Document introuvable');
     if (doc.status === 'invoiced') throw new HttpError(409, 'Ce devis a déjà été transformé en facture');
     if (kind === 'invoice') {
@@ -154,11 +163,11 @@ export function documentsRouter(kind) {
       if (status === 'draft' && doc.amount_paid > 0) throw new HttpError(409, 'Des paiements sont enregistrés : repasse en brouillon impossible');
     }
     await pool.query(`UPDATE ${cfg.table} SET status = ? WHERE id = ?`, [status, req.params.id]);
-    res.json(await loadDocument(kind, req.params.id));
+    res.json(await loadDocument(kind, req.params.id, req.company.id));
   }));
 
   router.delete('/:id', asyncHandler(async (req, res) => {
-    const [[doc]] = await pool.query(`SELECT * FROM ${cfg.table} WHERE id = ?`, [req.params.id]);
+    const [[doc]] = await pool.query(`SELECT * FROM ${cfg.table} WHERE id = ? AND company_id = ?`, [req.params.id, req.company.id]);
     if (!doc) throw new HttpError(404, 'Document introuvable');
     if (kind === 'invoice' && !['draft', 'cancelled'].includes(doc.status)) {
       throw new HttpError(409, 'Annule la facture avant de la supprimer');
@@ -170,20 +179,20 @@ export function documentsRouter(kind) {
   }));
 
   if (kind === 'quote') {
-    // Devis -> facture (brouillon), copie des lignes
+    // Devis -> facture (brouillon), copie des lignes et de la devise
     router.post('/:id/convert', asyncHandler(async (req, res) => {
       const invoiceId = await withTransaction(async (conn) => {
-        const [[quote]] = await conn.query('SELECT * FROM quotes WHERE id = ? FOR UPDATE', [req.params.id]);
+        const [[quote]] = await conn.query('SELECT * FROM quotes WHERE id = ? AND company_id = ? FOR UPDATE', [req.params.id, req.company.id]);
         if (!quote) throw new HttpError(404, 'Devis introuvable');
         if (quote.status === 'invoiced') throw new HttpError(409, 'Ce devis a déjà été facturé');
         const [lines] = await conn.query('SELECT * FROM quote_lines WHERE quote_id = ? ORDER BY sort_order, id', [quote.id]);
-        const id = await createDocument(conn, 'invoice', {
-          client_id: quote.client_id, lines, notes: quote.notes, terms: quote.terms,
+        const id = await createDocument(conn, 'invoice', req.company, {
+          client_id: quote.client_id, lines, notes: quote.notes, terms: quote.terms, currency: quote.currency,
         }, { quote_id: quote.id });
         await conn.query("UPDATE quotes SET status = 'invoiced' WHERE id = ?", [quote.id]);
         return id;
       });
-      res.status(201).json(await loadDocument('invoice', invoiceId));
+      res.status(201).json(await loadDocument('invoice', invoiceId, req.company.id));
     }));
   }
 

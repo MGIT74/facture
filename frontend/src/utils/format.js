@@ -1,5 +1,21 @@
-export const eur = (n) =>
-  new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(Number(n) || 0);
+export const CURRENCIES = [
+  { code: 'EUR', label: 'Euro (EUR)' },
+  { code: 'USD', label: 'Dollar US (USD)' },
+  { code: 'GBP', label: 'Livre sterling (GBP)' },
+  { code: 'CHF', label: 'Franc suisse (CHF)' },
+  { code: 'CAD', label: 'Dollar canadien (CAD)' },
+  { code: 'AUD', label: 'Dollar australien (AUD)' },
+  { code: 'MAD', label: 'Dirham marocain (MAD)' },
+  { code: 'TND', label: 'Dinar tunisien (TND)' },
+  { code: 'DZD', label: 'Dinar algérien (DZD)' },
+  { code: 'XOF', label: 'Franc CFA BCEAO (XOF)' },
+  { code: 'XAF', label: 'Franc CFA BEAC (XAF)' },
+  { code: 'ZAR', label: 'Rand sud-africain (ZAR)' },
+];
+
+/** Montant formaté dans la devise donnée (EUR par défaut). */
+export const money = (n, currency = 'EUR') =>
+  new Intl.NumberFormat('fr-FR', { style: 'currency', currency: currency || 'EUR' }).format(Number(n) || 0);
 
 export const dateFr = (s) => (s ? new Date(s + 'T00:00:00').toLocaleDateString('fr-FR') : '');
 

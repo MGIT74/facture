@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { HttpError } from './utils.js';
+import { pool } from './db.js';
 
 export function requireAuth(req, _res, next) {
   const header = req.headers.authorization || '';
@@ -16,6 +17,19 @@ export function requireAuth(req, _res, next) {
 export function requireAdmin(req, _res, next) {
   if (req.user?.role !== 'admin') return next(new HttpError(403, 'Réservé aux administrateurs'));
   next();
+}
+
+/** Détermine l'entreprise courante via l'en-tête X-Company-Id (par défaut : la première). */
+export async function withCompany(req, _res, next) {
+  try {
+    const raw = Number(req.headers['x-company-id']);
+    const [[company]] = raw
+      ? await pool.query('SELECT * FROM companies WHERE id = ?', [raw])
+      : await pool.query('SELECT * FROM companies ORDER BY id LIMIT 1');
+    if (!company) throw new HttpError(raw ? 400 : 409, raw ? 'Entreprise inconnue' : "Aucune entreprise : crées-en une d'abord");
+    req.company = company;
+    next();
+  } catch (e) { next(e); }
 }
 
 export function errorHandler(err, _req, res, _next) {

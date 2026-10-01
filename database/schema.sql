@@ -11,10 +11,10 @@ CREATE TABLE IF NOT EXISTS users (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Une seule ligne (id = 1) : les infos de ton entreprise
-CREATE TABLE IF NOT EXISTS settings (
-  id TINYINT UNSIGNED PRIMARY KEY DEFAULT 1,
-  company_name VARCHAR(190) NOT NULL DEFAULT 'Mon entreprise',
+-- Entreprises : l'app gère plusieurs entreprises (chacune avec ses clients, produits, devis, factures)
+CREATE TABLE IF NOT EXISTS companies (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  company_name VARCHAR(190) NOT NULL,
   legal_name VARCHAR(190),
   siret VARCHAR(30),
   vat_number VARCHAR(30),
@@ -28,23 +28,29 @@ CREATE TABLE IF NOT EXISTS settings (
   bic VARCHAR(20),
   invoice_prefix VARCHAR(10) NOT NULL DEFAULT 'FAC',
   quote_prefix VARCHAR(10) NOT NULL DEFAULT 'DEV',
+  default_currency CHAR(3) NOT NULL DEFAULT 'EUR',
   default_tax_rate DECIMAL(5,2) NOT NULL DEFAULT 20.00,
   payment_terms_days SMALLINT NOT NULL DEFAULT 30,
-  default_terms TEXT
+  default_terms TEXT,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-INSERT IGNORE INTO settings (id) VALUES (1);
+INSERT INTO companies (id, company_name)
+  SELECT 1, 'Mon entreprise' FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM companies);
 
--- Compteurs de numérotation, un par type et par année (FAC-2026-0001).
+-- Compteurs de numérotation : un par entreprise, par type et par année (FAC-2026-0001).
 -- Incrément atomique dans une transaction : pas de doublon possible.
 CREATE TABLE IF NOT EXISTS counters (
+  company_id INT UNSIGNED NOT NULL,
   kind ENUM('invoice','quote') NOT NULL,
   year SMALLINT NOT NULL,
   value INT UNSIGNED NOT NULL DEFAULT 0,
-  PRIMARY KEY (kind, year)
+  PRIMARY KEY (company_id, kind, year),
+  FOREIGN KEY (company_id) REFERENCES companies(id)
 );
 
 CREATE TABLE IF NOT EXISTS clients (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  company_id INT UNSIGNED NOT NULL,
   name VARCHAR(190) NOT NULL,
   email VARCHAR(190),
   phone VARCHAR(40),
@@ -56,11 +62,13 @@ CREATE TABLE IF NOT EXISTS clients (
   notes TEXT,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX (name)
+  FOREIGN KEY (company_id) REFERENCES companies(id),
+  INDEX (company_id, name)
 );
 
 CREATE TABLE IF NOT EXISTS items (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  company_id INT UNSIGNED NOT NULL,
   name VARCHAR(190) NOT NULL,
   description TEXT,
   unit_price DECIMAL(12,2) NOT NULL DEFAULT 0,
@@ -68,12 +76,15 @@ CREATE TABLE IF NOT EXISTS items (
   unit VARCHAR(30) DEFAULT 'unité',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX (name)
+  FOREIGN KEY (company_id) REFERENCES companies(id),
+  INDEX (company_id, name)
 );
 
 CREATE TABLE IF NOT EXISTS quotes (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  number VARCHAR(40) NOT NULL UNIQUE,
+  company_id INT UNSIGNED NOT NULL,
+  number VARCHAR(40) NOT NULL,
+  currency CHAR(3) NOT NULL DEFAULT 'EUR',
   client_id INT UNSIGNED NOT NULL,
   status ENUM('draft','sent','accepted','rejected','invoiced') NOT NULL DEFAULT 'draft',
   issue_date DATE NOT NULL,
@@ -86,7 +97,9 @@ CREATE TABLE IF NOT EXISTS quotes (
   terms TEXT,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (company_id) REFERENCES companies(id),
   FOREIGN KEY (client_id) REFERENCES clients(id),
+  UNIQUE KEY uq_quotes_company_number (company_id, number),
   INDEX (status), INDEX (issue_date)
 );
 
@@ -107,7 +120,9 @@ CREATE TABLE IF NOT EXISTS quote_lines (
 
 CREATE TABLE IF NOT EXISTS invoices (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  number VARCHAR(40) NOT NULL UNIQUE,
+  company_id INT UNSIGNED NOT NULL,
+  number VARCHAR(40) NOT NULL,
+  currency CHAR(3) NOT NULL DEFAULT 'EUR',
   client_id INT UNSIGNED NOT NULL,
   quote_id INT UNSIGNED NULL,
   status ENUM('draft','sent','paid','cancelled') NOT NULL DEFAULT 'draft',
@@ -123,8 +138,10 @@ CREATE TABLE IF NOT EXISTS invoices (
   terms TEXT,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (company_id) REFERENCES companies(id),
   FOREIGN KEY (client_id) REFERENCES clients(id),
   FOREIGN KEY (quote_id) REFERENCES quotes(id) ON DELETE SET NULL,
+  UNIQUE KEY uq_invoices_company_number (company_id, number),
   INDEX (status), INDEX (issue_date), INDEX (due_date)
 );
 

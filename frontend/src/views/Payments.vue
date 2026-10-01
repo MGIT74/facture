@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import api, { errMsg } from '../api.js';
-import { eur, dateFr, METHODS } from '../utils/format.js';
+import { money, dateFr, METHODS } from '../utils/format.js';
 import { toast } from '../utils/toast.js';
 
 const rows = ref([]);
@@ -9,7 +9,7 @@ async function load() { rows.value = (await api.get('/payments')).data; }
 onMounted(load);
 
 async function remove(p) {
-  if (!confirm(`Supprimer ce paiement de ${eur(p.amount)} ? La facture sera recalculée.`)) return;
+  if (!confirm(`Supprimer ce paiement de ${money(p.amount, p.currency)} ? La facture sera recalculée.`)) return;
   try { await api.delete(`/payments/${p.id}`); toast('Paiement supprimé'); await load(); }
   catch (e) { toast(errMsg(e), 'err'); }
 }
@@ -32,7 +32,7 @@ async function remove(p) {
             <td>{{ p.client_name }}</td>
             <td>{{ METHODS[p.payment_method] }}</td>
             <td class="muted">{{ p.reference }}</td>
-            <td class="num">{{ eur(p.amount) }}</td>
+            <td class="num">{{ money(p.amount, p.currency) }}</td>
             <td class="actions-cell"><button class="link danger" @click="remove(p)">Supprimer</button></td>
           </tr>
         </tbody>

@@ -1,10 +1,12 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue';
 import api, { errMsg } from '../api.js';
-import { eur } from '../utils/format.js';
+import { money } from '../utils/format.js';
+import { useCompany } from '../stores/company.js';
 import { toast } from '../utils/toast.js';
 import Modal from '../components/Modal.vue';
 
+const company = useCompany();
 const rows = ref([]);
 const q = ref('');
 const editing = ref(null);
@@ -56,7 +58,7 @@ async function remove(i) {
     </div>
     <div v-else class="table-wrap">
       <table>
-        <thead><tr><th>Nom</th><th>Unité</th><th class="num">Prix HT</th><th class="num">TVA</th><th></th></tr></thead>
+        <thead><tr><th>Nom</th><th>Unité</th><th class="num">Prix HT ({{ company.currency }})</th><th class="num">TVA</th><th></th></tr></thead>
         <tbody>
           <tr v-for="i in rows" :key="i.id">
             <td>
@@ -64,7 +66,7 @@ async function remove(i) {
               <div v-if="i.description" class="muted small">{{ i.description }}</div>
             </td>
             <td>{{ i.unit }}</td>
-            <td class="num">{{ eur(i.unit_price) }}</td>
+            <td class="num">{{ money(i.unit_price, company.currency) }}</td>
             <td class="num">{{ i.tax_rate }} %</td>
             <td class="actions-cell"><button class="link danger" @click="remove(i)">Supprimer</button></td>
           </tr>

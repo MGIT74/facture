@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import api from '../api.js';
-import { eur, dateFr, STATUS } from '../utils/format.js';
+import { money, dateFr, STATUS } from '../utils/format.js';
 import StatusBadge from '../components/StatusBadge.vue';
 
 const props = defineProps({ type: String });
@@ -63,8 +63,8 @@ watch(q, () => { clearTimeout(t); t = setTimeout(load, 250); });
             <td>{{ d.client_name }}</td>
             <td class="muted">{{ dateFr(d.issue_date) }}</td>
             <td class="muted">{{ dateFr(isInvoice ? d.due_date : d.valid_until) }}</td>
-            <td class="num">{{ eur(d.total) }}</td>
-            <td v-if="isInvoice" class="num">{{ d.status === 'cancelled' ? '' : eur(d.total - d.amount_paid) }}</td>
+            <td class="num">{{ money(d.total, d.currency) }}</td>
+            <td v-if="isInvoice" class="num">{{ d.status === 'cancelled' ? '' : money(d.total - d.amount_paid, d.currency) }}</td>
             <td><StatusBadge :type="type" :status="d.display_status" /></td>
           </tr>
         </tbody>

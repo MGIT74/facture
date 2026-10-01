@@ -2,25 +2,30 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api, { errMsg } from '../api.js';
-import { eur, todayISO, addDaysISO } from '../utils/format.js';
+import { money, CURRENCIES, todayISO, addDaysISO } from '../utils/format.js';
+import { useCompany } from '../stores/company.js';
 import { lineNet, totals } from '../utils/money.js';
 import { toast } from '../utils/toast.js';
 
 const props = defineProps({ type: String, id: String });
 const route = useRoute();
 const router = useRouter();
+const company = useCompany();
 const isInvoice = computed(() => props.type === 'invoice');
 const base = computed(() => (isInvoice.value ? 'invoices' : 'quotes'));
 const dateKey = computed(() => (isInvoice.value ? 'due_date' : 'valid_until'));
 
 const clients = ref([]);
 const items = ref([]);
-const settings = ref(null);
 const error = ref('');
 const saving = ref(false);
 const ready = ref(false);
 const dateTouched = ref(false);
-const form = ref({ client_id: '', issue_date: todayISO(), due_date: '', valid_until: '', notes: '', terms: '', lines: [] });
+const form = ref({ client_id: '', currency: 'EUR', issue_date: todayISO(), due_date: '', valid_until: '', notes: '', terms: '', lines: [] });
+
+// Montants affichés dans la devise du document
+const eur = (n) => money(n, form.value.currency);
+const settings = computed(() => company.current);
 
 const newLine = () => ({
   item_id: null, description: '', quantity: 1, unit_price: 0, discount_rate: 0,
@@ -28,19 +33,20 @@ const newLine = () => ({
 });
 
 onMounted(async () => {
-  const [c, i, s] = await Promise.all([api.get('/clients'), api.get('/items'), api.get('/settings')]);
-  clients.value = c.data; items.value = i.data; settings.value = s.data;
+  const [c, i] = await Promise.all([api.get('/clients'), api.get('/items')]);
+  clients.value = c.data; items.value = i.data;
 
   if (props.id) {
     const d = (await api.get(`/${base.value}/${props.id}`)).data;
     if (d.status !== 'draft') { toast('Seul un brouillon peut être modifié', 'err'); return router.replace(`/${base.value}/${props.id}`); }
     form.value = {
-      client_id: d.client_id, issue_date: d.issue_date, due_date: d.due_date || '', valid_until: d.valid_until || '',
+      client_id: d.client_id, currency: d.currency, issue_date: d.issue_date, due_date: d.due_date || '', valid_until: d.valid_until || '',
       notes: d.notes || '', terms: d.terms || '', lines: d.lines.map((l) => ({ ...l })),
     };
     dateTouched.value = true;
   } else {
-    form.value.terms = s.data.default_terms || '';
+    form.value.terms = settings.value?.default_terms || '';
+    form.value.currency = settings.value?.default_currency || 'EUR';
     form.value.lines = [newLine()];
     if (route.query.client) form.value.client_id = Number(route.query.client);
     applyDefaultDate();
@@ -101,6 +107,10 @@ async function save() {
             Aucun client. <router-link to="/clients">En créer un</router-link>
           </div>
         </div>
+        <div class="field">
+          <label for="currency">Devise</label>
+          <select id="currency" v-model="form.currency"><option v-for="c in CURRENCIES" :key="c.code" :value="c.code">{{ c.label }}</option></select>
+        </div>
         <div class="field"><label>Date d'émission</label><input v-model="form.issue_date" type="date" /></div>
         <div class="field">
           <label>{{ isInvoice ? 'Échéance' : "Valable jusqu'au" }}</label>
@@ -135,7 +145,12 @@ async function save() {
           </tbody>
         </table>
       </div>
-      <div class="panel-body" style="padding-top: 6px"><button @click="form.lines.push(newLine())">Ajouter une ligne</button></div>
+      <div class="panel-body" style="padding-top: 6px">
+        <button @click="form.lines.push(newLine())">Ajouter une ligne</button>
+        <p v-if="form.currency !== company.currency" class="muted small" style="margin: 10px 0 0">
+          Les prix des produits sont enregistrés en {{ company.currency }} : adapte-les si besoin pour ce document en {{ form.currency }}.
+        </p>
+      </div>
     </div>
 
     <div class="panel totals-box">
