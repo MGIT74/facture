@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit';
+import { PassThrough } from 'node:stream';
 
 // Helvetica (police PDF standard) ne gère pas les espaces insécables fines : on les remplace.
 const money = (n, currency = 'EUR') => new Intl.NumberFormat('fr-FR', { style: 'currency', currency })
@@ -44,8 +45,8 @@ export function renderPdf(res, kind, doc) {
   const left = 50, right = 545;
 
   const pdf = new PDFDocument({ size: 'A4', margin: 50, info: { Title: `${title} ${doc.number}` } });
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `inline; filename="${doc.number}.pdf"`);
+  res.setHeader?.('Content-Type', 'application/pdf');
+  res.setHeader?.('Content-Disposition', `inline; filename="${doc.number}.pdf"`);
   pdf.pipe(res);
 
   // Pied de page : dessiné sur chaque page, sans déclencher de saut de page
@@ -192,4 +193,16 @@ export function renderPdf(res, kind, doc) {
   if (isInvoice && t.show_bank && co.iban) block('Règlement par virement', `IBAN ${co.iban}${co.bic ? `\nBIC ${co.bic}` : ''}`);
 
   pdf.end();
+}
+
+/** Le même PDF, en mémoire (pièce jointe d'un email). */
+export function renderPdfBuffer(kind, doc) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const out = new PassThrough();
+    out.on('data', (c) => chunks.push(c));
+    out.on('end', () => resolve(Buffer.concat(chunks)));
+    out.on('error', reject);
+    renderPdf(out, kind, doc);
+  });
 }

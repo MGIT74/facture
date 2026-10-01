@@ -39,4 +39,14 @@ export async function openPdf(path, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
+/** Télécharge un fichier protégé (CSV…) : l'API demande le jeton, donc on passe par axios. */
+export async function downloadFile(path, params, filename) {
+  const { data, headers } = await api.get(path, { params, responseType: 'blob' });
+  const name = /filename="?([^";]+)"?/.exec(headers['content-disposition'] || '')?.[1] || filename;
+  const url = URL.createObjectURL(data);
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+}
+
 export default api;

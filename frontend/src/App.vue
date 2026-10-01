@@ -33,11 +33,11 @@ watch(() => company.currentId, (now, before) => {
 
 const SECTIONS = {
   '': 'Tableau de bord', invoices: 'Factures', quotes: 'Devis', clients: 'Clients',
-  items: 'Produits et services', payments: 'Paiements', companies: 'Entreprises', settings: 'Paramètres',
+  items: 'Produits et services', payments: 'Paiements', reminders: 'Relances', reports: 'Rapports', companies: 'Entreprises', settings: 'Paramètres',
 };
 const crumbs = computed(() => {
   const [a, b] = route.path.split('/').filter(Boolean);
-  const SETTINGS = { templates: 'Modèles de documents', users: 'Utilisateurs', account: 'Mon compte' };
+  const SETTINGS = { templates: 'Modèles de documents', email: 'Email', 'email-templates': 'Emails types', users: 'Utilisateurs', account: 'Mon compte' };
   const sub = !b ? null : a === 'settings' ? SETTINGS[b] : b === 'new' ? 'Nouveau' : route.path.endsWith('/edit') ? 'Modifier' : 'Détail';
   if (company.ready && !company.list.length) return { section: 'Bienvenue', sub: null };
   return { section: SECTIONS[a || ''] || '', sub };
@@ -84,12 +84,14 @@ function logout() {
           <router-link to="/" class="nav-item" active-class="" exact-active-class="active"><span class="nav-ico"><Icon name="home" /></span>Tableau de bord</router-link>
           <router-link to="/invoices" class="nav-item" active-class="active"><span class="nav-ico"><Icon name="invoice" /></span>Factures</router-link>
           <router-link to="/quotes" class="nav-item" active-class="active"><span class="nav-ico"><Icon name="quote" /></span>Devis</router-link>
+          <router-link to="/reminders" class="nav-item" active-class="active"><span class="nav-ico"><Icon name="bell" /></span>Relances</router-link>
         </div>
         <div class="nav-group">
           <div class="nav-label">Outils</div>
           <router-link to="/clients" class="nav-item" active-class="active"><span class="nav-ico"><Icon name="users" /></span>Clients</router-link>
           <router-link to="/items" class="nav-item" active-class="active"><span class="nav-ico"><Icon name="package" /></span>Produits et services</router-link>
           <router-link to="/payments" class="nav-item" active-class="active"><span class="nav-ico"><Icon name="card" /></span>Paiements</router-link>
+          <router-link to="/reports" class="nav-item" active-class="active"><span class="nav-ico"><Icon name="chart" /></span>Rapports</router-link>
         </div>
         <div class="nav-group">
           <div class="nav-label">Administration</div>

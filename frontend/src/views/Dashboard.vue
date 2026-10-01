@@ -209,7 +209,10 @@ const invoiceCount = computed(() => statusBars.value.reduce((a, b) => a + b.coun
       <div class="panel">
         <div class="panel-head">
           <h2>En retard</h2>
-          <span class="late" style="font-weight: 600; font-variant-numeric: tabular-nums">{{ eur(data.kpi.overdue_amount) }}</span>
+          <span style="display: flex; gap: 12px; align-items: center">
+            <router-link v-if="data.overdue.length" to="/reminders" class="small">Relancer</router-link>
+            <span class="late" style="font-weight: 600; font-variant-numeric: tabular-nums">{{ eur(data.kpi.overdue_amount) }}</span>
+          </span>
         </div>
         <div v-if="!data.overdue.length" class="empty"><strong>Rien en retard</strong>Toutes les factures envoyées sont dans les délais.</div>
         <div v-for="i in data.overdue" :key="i.id" class="act-row late click" @click="$router.push(`/invoices/${i.id}`)">

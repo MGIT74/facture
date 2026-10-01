@@ -89,7 +89,7 @@ async function createDocument(conn, kind, company, body, extra = {}) {
   return r.insertId;
 }
 
-async function loadDocument(kind, id, companyId) {
+export async function loadDocument(kind, id, companyId) {
   const cfg = KINDS[kind];
   const [[doc]] = await pool.query(
     `SELECT d.*, ${displayStatus(kind)} AS display_status, c.name AS client_name
@@ -169,6 +169,16 @@ export function documentsRouter(kind) {
       await insertLines(conn, cfg, id, t.lines);
     });
     res.json(await loadDocument(kind, id, req.company.id));
+  }));
+
+  // Copie un document en nouveau brouillon (nouveau numéro, dates du jour)
+  router.post('/:id/duplicate', asyncHandler(async (req, res) => {
+    const src = await loadDocument(kind, req.params.id, req.company.id);
+    const id = await withTransaction((conn) => createDocument(conn, kind, req.company, {
+      client_id: src.client_id, currency: src.currency, template_id: src.template_id ?? undefined,
+      lines: src.lines, notes: src.notes, terms: src.terms,
+    }));
+    res.status(201).json(await loadDocument(kind, id, req.company.id));
   }));
 
   router.post('/:id/status', asyncHandler(async (req, res) => {

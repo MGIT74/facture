@@ -6,6 +6,8 @@ import { money, dateFr, todayISO, METHODS } from '../utils/format.js';
 import { toast } from '../utils/toast.js';
 import StatusBadge from '../components/StatusBadge.vue';
 import DocumentSheet from '../components/DocumentSheet.vue';
+import EmailComposer from '../components/EmailComposer.vue';
+import Icon from '../components/Icon.vue';
 
 const props = defineProps({ type: String, id: String });
 const router = useRouter();
@@ -13,18 +15,33 @@ const isInvoice = computed(() => props.type === 'invoice');
 const base = computed(() => (isInvoice.value ? 'invoices' : 'quotes'));
 
 const doc = ref(null);
+const logs = ref([]);
+const composer = ref(null); // { key } : fenêtre d'envoi d'email
 const loadError = ref('');
 // Montants affichés dans la devise du document
 const eur = (n) => money(n, doc.value?.currency);
 const busy = ref(false);
 const pay = ref({ amount: 0, payment_date: todayISO(), payment_method: 'bank_transfer', reference: '' });
 
+async function loadLogs() {
+  try { logs.value = (await api.get('/email/logs', { params: { kind: props.type, document_id: props.id } })).data; } catch { logs.value = []; }
+}
 async function load() {
   try {
     doc.value = (await api.get(`/${base.value}/${props.id}`)).data;
     if (isInvoice.value) pay.value.amount = doc.value.balance_due;
-  } catch (e) { loadError.value = errMsg(e); }
+  } catch (e) { loadError.value = errMsg(e); return; }
+  loadLogs();
 }
+
+const duplicate = () => run(async () => {
+  const { data } = await api.post(`/${base.value}/${props.id}/duplicate`);
+  toast(`${data.number} créé en brouillon`);
+  router.push(`/${base.value}/${data.id}`);
+});
+const reminderKey = computed(() => `reminder_${Math.min((doc.value?.last_reminder_level || 0) + 1, 3)}`);
+const EMAIL_LABEL = { invoice_send: 'Envoi', quote_send: 'Envoi', reminder_1: 'Relance n°1', reminder_2: 'Relance n°2', reminder_3: 'Relance n°3', payment_received: 'Reçu' };
+const dt = (s) => `${dateFr((s || '').slice(0, 10))} ${(s || '').slice(11, 16)}`;
 onMounted(load);
 
 async function run(fn, okMsg) {
@@ -107,6 +124,27 @@ const canPay = computed(() => isInvoice.value && doc.value && doc.value.status !
           </div>
         </div>
 
+        <div class="panel">
+          <div class="panel-head"><h2>Email</h2></div>
+          <div class="panel-body">
+            <button :class="{ primary: doc.status === 'draft' }" @click="composer = { key: isInvoice ? 'invoice_send' : 'quote_send' }"><Icon name="mail" />Envoyer par email</button>
+            <button v-if="isInvoice && doc.display_status === 'overdue'" @click="composer = { key: reminderKey }"><Icon name="bell" />Relancer le client</button>
+            <button v-if="isInvoice && doc.amount_paid > 0" @click="composer = { key: 'payment_received' }">Envoyer un reçu de paiement</button>
+            <button @click="duplicate"><Icon name="copy" />Dupliquer</button>
+            <div v-if="logs.length" style="margin-top: 6px">
+              <div class="muted small" style="margin-bottom: 4px">Emails envoyés</div>
+              <div v-for="l in logs" :key="l.id" class="pay-row" style="flex-direction: column; gap: 2px">
+                <div style="display: flex; justify-content: space-between; gap: 8px">
+                  <span>{{ EMAIL_LABEL[l.template_key] || l.template_key }}<span v-if="l.automatic" class="muted small"> (auto)</span></span>
+                  <span class="badge" :class="l.status === 'sent' ? 'paid' : 'overdue'">{{ l.status === 'sent' ? 'Envoyé' : 'Échec' }}</span>
+                </div>
+                <div class="muted small">{{ dt(l.created_at) }} à {{ l.to_email }}</div>
+                <div v-if="l.error" class="late small">{{ l.error }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div v-if="isInvoice" class="panel">
           <div class="panel-head"><h2>Paiements</h2></div>
           <div class="panel-body">
@@ -133,5 +171,6 @@ const canPay = computed(() => isInvoice.value && doc.value && doc.value.status !
         </div>
       </aside>
     </div>
+    <EmailComposer v-if="composer" :kind="type" :document-id="id" :template-key="composer.key" :number="doc.number" @close="composer = null" @sent="load" />
   </template>
 </template>

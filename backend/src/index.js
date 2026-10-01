@@ -11,6 +11,10 @@ import { clientsRouter, itemsRouter } from './routes/crud.js';
 import companiesRouter from './routes/companies.js';
 import usersRouter from './routes/users.js';
 import templatesRouter from './routes/templates.js';
+import emailRouter from './routes/email.js';
+import remindersRouter from './routes/reminders.js';
+import reportsRouter from './routes/reports.js';
+import { startScheduler } from './services/scheduler.js';
 import { documentsRouter } from './routes/documents.js';
 import paymentsRouter from './routes/payments.js';
 import dashboardRouter from './routes/dashboard.js';
@@ -41,6 +45,9 @@ app.use('/api/templates', requireAuth, withCompany, templatesRouter);
 app.use('/api/invoices', requireAuth, withCompany, documentsRouter('invoice'));
 app.use('/api/quotes', requireAuth, withCompany, documentsRouter('quote'));
 app.use('/api/payments', requireAuth, withCompany, paymentsRouter);
+app.use('/api/email', requireAuth, withCompany, emailRouter);
+app.use('/api/reminders', requireAuth, withCompany, remindersRouter);
+app.use('/api/reports', requireAuth, withCompany, reportsRouter);
 app.use('/api/dashboard', requireAuth, withCompany, dashboardRouter);
 
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Route inconnue' }));
@@ -70,6 +77,7 @@ async function start() {
   app.listen(port, () => {
     console.log(`API Facturio sur http://localhost:${port}`);
     bootstrapAdmin();
+    startScheduler();
   });
 }
 start();

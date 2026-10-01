@@ -10,6 +10,10 @@ import Templates from './views/settings/Templates.vue';
 import TemplateEditor from './views/settings/TemplateEditor.vue';
 import Users from './views/settings/Users.vue';
 import Account from './views/settings/Account.vue';
+import Email from './views/settings/Email.vue';
+import EmailTemplates from './views/settings/EmailTemplates.vue';
+import Reminders from './views/Reminders.vue';
+import Reports from './views/Reports.vue';
 import DocumentList from './views/DocumentList.vue';
 import DocumentForm from './views/DocumentForm.vue';
 import DocumentView from './views/DocumentView.vue';
@@ -29,6 +33,8 @@ const router = createRouter({
     { path: '/clients', component: Clients },
     { path: '/items', component: Items },
     { path: '/payments', component: Payments },
+    { path: '/reminders', component: Reminders },
+    { path: '/reports', component: Reports },
     { path: '/companies', component: Companies },
     {
       path: '/settings',
@@ -38,6 +44,8 @@ const router = createRouter({
         { path: 'templates', component: Templates },
         { path: 'templates/new', component: TemplateEditor },
         { path: 'templates/:id', component: TemplateEditor },
+        { path: 'email', component: Email },
+        { path: 'email-templates', component: EmailTemplates },
         { path: 'users', component: Users },
         { path: 'account', component: Account },
       ],

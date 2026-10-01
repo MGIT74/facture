@@ -4,6 +4,11 @@ Application interne de facturation : **Vue 3 + Node.js (Express) + MySQL**.
 Version simplifiée de Facturio (Next.js + Supabase) : **plusieurs entreprises** gérées par la même équipe (sans multi-tenant), et une **devise par document**.
 
 ## Fonctionnalités
+- **Email** (Paramètres > Email) : serveur SMTP par entreprise (Gmail, Microsoft 365, OVH, Infomaniak, Brevo, SendGrid ou autre), mot de passe chiffré en base, email de test. Envoi des factures et devis avec le PDF en pièce jointe, avec historique sur chaque document.
+- **Emails types** (Paramètres > Emails types) : textes modifiables pour l'envoi de facture, l'envoi de devis, trois niveaux de relance et le reçu de paiement, avec variables (`{{client}}`, `{{number}}`, `{{balance}}`…) et aperçu.
+- **Relances** : page des factures échues avec la prochaine relance à envoyer, envoi manuel ou en lot, et relances automatiques (désactivées par défaut, une vérification par jour, 3 relances maximum par facture, au moins 3 jours d'écart).
+- **Rapports** : chiffres par période et par devise (facturé, encaissé, reste à encaisser, TVA par taux, clients), exports CSV pour Excel (factures, paiements, devis, clients).
+- **Duplication** d'une facture ou d'un devis en nouveau brouillon.
 - **Espaces totalement isolés** : un administrateur peut créer d'autres administrateurs. Chacun crée ses propres entreprises, que personne d'autre ne voit (ni clients, ni produits, ni factures, ni utilisateurs). L'accès se règle entreprise par entreprise.
 - **Modèles de factures et de devis** (Paramètres > Modèles) : logo, couleur, disposition (classique, moderne, minimal), titre, colonnes Remise/TVA, coordonnées bancaires, notes, conditions et pied de page, avec aperçu en direct. Un modèle par défaut par type, appliqué aussi au PDF.
 - **Paramètres** : modèles, utilisateurs (création, rôles, accès par entreprise, mot de passe) et « Mon compte » (nom, mot de passe).
@@ -75,6 +80,12 @@ frontend/src/
   views/                     écrans (Dashboard, Clients, DocumentForm, DocumentView…)
   components/  stores/  utils/
 ```
+
+## Email : points d'attention
+- Utilise un port **587 (STARTTLS)** ou **465 (SSL)** : le port 25 est bloqué par la plupart des hébergeurs.
+- Le mot de passe SMTP est chiffré avec `APP_SECRET` (ou, à défaut, `JWT_SECRET`). **Si cette valeur change, il faut ressaisir le mot de passe** dans Paramètres > Email.
+- Limite de 100 emails par heure et par entreprise.
+- Relances automatiques : `REMINDERS_HOUR` (heure UTC, 8 par défaut), `DISABLE_SCHEDULER=1` pour les couper complètement.
 
 ## Mise à jour de la base
 Au démarrage, le backend applique automatiquement les migrations nécessaires (`backend/src/migrate.js`).

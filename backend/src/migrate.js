@@ -16,6 +16,7 @@ const hasIndex = async (t, i) =>
 export async function migrate() {
   await migrateV2();
   await migrateV3();
+  await migrateV4();
 }
 
 async function migrateV2() {
@@ -119,5 +120,41 @@ async function migrateV3() {
       await pool.query(`ALTER TABLE ${t} ADD COLUMN template_id INT UNSIGNED NULL AFTER currency`);
       await pool.query(`ALTER TABLE ${t} ADD CONSTRAINT fk_${t}_template FOREIGN KEY (template_id) REFERENCES document_templates(id) ON DELETE SET NULL`);
     }
+  }
+}
+
+/** v4 : email (SMTP, textes types, historique) et suivi des relances. */
+async function migrateV4() {
+  if (!(await hasTable('email_settings'))) {
+    console.log('Migration v4 : email et relances…');
+    await pool.query(`CREATE TABLE email_settings (
+      company_id INT UNSIGNED PRIMARY KEY, smtp_host VARCHAR(190), smtp_port SMALLINT UNSIGNED NOT NULL DEFAULT 587,
+      smtp_secure ENUM('none','starttls','ssl') NOT NULL DEFAULT 'starttls', smtp_user VARCHAR(190), smtp_pass_enc TEXT,
+      tls_reject_unauthorized TINYINT(1) NOT NULL DEFAULT 1, from_name VARCHAR(120), from_email VARCHAR(190), reply_to VARCHAR(190),
+      bcc_self TINYINT(1) NOT NULL DEFAULT 0, signature TEXT, reminders_enabled TINYINT(1) NOT NULL DEFAULT 0,
+      reminder1_days SMALLINT UNSIGNED NOT NULL DEFAULT 3, reminder2_days SMALLINT UNSIGNED NOT NULL DEFAULT 10,
+      reminder3_days SMALLINT UNSIGNED NOT NULL DEFAULT 20,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE)`);
+  }
+  if (!(await hasTable('email_templates'))) {
+    await pool.query(`CREATE TABLE email_templates (
+      company_id INT UNSIGNED NOT NULL,
+      template_key ENUM('invoice_send','quote_send','reminder_1','reminder_2','reminder_3','payment_received') NOT NULL,
+      subject VARCHAR(250) NOT NULL, body TEXT NOT NULL, PRIMARY KEY (company_id, template_key),
+      FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE)`);
+  }
+  if (!(await hasTable('email_logs'))) {
+    await pool.query(`CREATE TABLE email_logs (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, company_id INT UNSIGNED NOT NULL, user_id INT UNSIGNED NULL,
+      automatic TINYINT(1) NOT NULL DEFAULT 0, kind ENUM('invoice','quote') NOT NULL, document_id INT UNSIGNED NOT NULL,
+      template_key VARCHAR(30) NOT NULL, to_email VARCHAR(500) NOT NULL, cc_email VARCHAR(500), subject VARCHAR(250) NOT NULL,
+      status ENUM('sent','failed') NOT NULL, error VARCHAR(500), created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+      INDEX (company_id, kind, document_id), INDEX (company_id, created_at))`);
+  }
+  if (!(await hasColumn('invoices', 'last_reminder_level'))) {
+    await pool.query('ALTER TABLE invoices ADD COLUMN last_reminder_level TINYINT UNSIGNED NOT NULL DEFAULT 0, ADD COLUMN last_reminder_at DATETIME NULL');
   }
 }
