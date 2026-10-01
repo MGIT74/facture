@@ -35,7 +35,7 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       ADMIN_NAME: ${ADMIN_NAME:-Administrateur}
     ports:
-      - "127.0.0.1:${APP_PORT:-3001}:3000"   # joignable uniquement via le proxy nginx (HTTPS)
+      - "127.0.0.1:3001:3000"   # joignable uniquement via le proxy nginx (HTTPS)
 
 volumes:
   db_data:
