@@ -4,6 +4,7 @@ Application interne de facturation : **Vue 3 + Node.js (Express) + MySQL**.
 Version simplifiée de Facturio (Next.js + Supabase) : **plusieurs entreprises** gérées par la même équipe (sans multi-tenant), et une **devise par document**.
 
 ## Fonctionnalités
+- **Interface moderne** : mode sombre et mode clair (bouton en haut à droite, choix mémorisé, sinon réglage du système), accent bleu Apple, recherche rapide (⌘K / Ctrl+K).
 - **Plusieurs entreprises** : chacune a ses clients, produits, devis, factures, préfixes et numérotation. On change d'entreprise depuis le menu de la barre latérale.
 - **Devises** : EUR, USD, GBP, CHF, CAD, AUD, MAD, TND, DZD, XOF, XAF, ZAR. Chaque entreprise a une devise par défaut, modifiable sur chaque devis ou facture (le PDF et le tableau de bord suivent).
 - Clients, produits et services

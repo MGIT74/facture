@@ -3,9 +3,13 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '../stores/auth.js';
 import { errMsg } from '../api.js';
+import { useTheme } from '../stores/theme.js';
+import Icon from '../components/Icon.vue';
+import BrandMark from '../components/BrandMark.vue';
 
 const router = useRouter();
 const auth = useAuth();
+const theme = useTheme();
 const email = ref('');
 const password = ref('');
 const error = ref('');
@@ -27,8 +31,12 @@ async function submit() {
 
 <template>
   <div class="login">
+    <button class="icon-btn" style="position: fixed; top: 18px; right: 18px" :aria-label="theme.mode === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'" @click="theme.toggle()">
+      <Icon :name="theme.mode === 'dark' ? 'sun' : 'moon'" />
+    </button>
     <div class="panel">
-      <h1>Facturio</h1>
+      <div class="brand"><BrandMark /> Facturio</div>
+      <h1>Connexion</h1>
       <p class="muted" style="margin: 4px 0 0">Connecte-toi pour gérer tes factures.</p>
       <form @submit.prevent="submit">
         <div class="field" style="margin-top: 22px">

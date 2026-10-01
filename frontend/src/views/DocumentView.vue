@@ -163,6 +163,7 @@ const address = (o) => [o.address, [o.postal_code, o.city].filter(Boolean).join(
               <button v-if="['draft', 'sent'].includes(doc.status)" class="danger" :disabled="busy" @click="setStatus('cancelled', 'Facture annulée')">Annuler la facture</button>
               <button v-if="doc.status === 'cancelled'" :disabled="busy" @click="setStatus('draft')">Rouvrir en brouillon</button>
               <button v-if="['draft', 'cancelled'].includes(doc.status) && !doc.amount_paid" class="danger" :disabled="busy" @click="remove">Supprimer</button>
+              <p v-if="doc.status === 'paid'" class="muted small" style="margin: 0">Cette facture est soldée : aucune action n'est disponible.</p>
             </template>
             <template v-else>
               <button v-if="doc.status === 'draft'" class="primary" :disabled="busy" @click="setStatus('sent', 'Devis marqué comme envoyé')">Marquer comme envoyé</button>

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import api from '../api.js';
 import { money, dateFr, STATUS } from '../utils/format.js';
 import StatusBadge from '../components/StatusBadge.vue';
@@ -8,8 +9,9 @@ const props = defineProps({ type: String });
 const base = computed(() => (props.type === 'invoice' ? 'invoices' : 'quotes'));
 const isInvoice = computed(() => props.type === 'invoice');
 
+const route = useRoute();
 const rows = ref([]);
-const q = ref('');
+const q = ref(String(route.query.q || ''));
 const status = ref('');
 const loading = ref(true);
 

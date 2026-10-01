@@ -86,7 +86,7 @@ async function save() {
 
 <template>
   <div class="page-head">
-    <h1>{{ id ? 'Modifier' : 'Nouveau' }} {{ isInvoice ? (id ? 'la facture' : 'facture') : (id ? 'le devis' : 'devis') }}</h1>
+    <h1>{{ id ? (isInvoice ? 'Modifier la facture' : 'Modifier le devis') : (isInvoice ? 'Nouvelle facture' : 'Nouveau devis') }}</h1>
     <div class="actions">
       <button @click="router.back()">Annuler</button>
       <button class="primary" :disabled="saving || !ready" @click="save">Enregistrer le brouillon</button>
