@@ -1,0 +1,40 @@
+import axios from 'axios';
+
+const api = axios.create({ baseURL: '/api' });
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+api.interceptors.response.use(
+  (r) => r,
+  (err) => {
+    if (err.response?.status === 401 && !err.config.url.includes('/auth/login')) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(err);
+  },
+);
+
+/** Message d'erreur lisible à afficher à l'utilisateur. */
+export const errMsg = (e) => e.response?.data?.error || e.message || 'Une erreur est survenue';
+
+/** Télécharge / ouvre un PDF (l'API demande le token, donc on passe par axios). */
+export async function openPdf(path, filename) {
+  const { data } = await api.get(path, { responseType: 'blob' });
+  const url = URL.createObjectURL(data);
+  const win = window.open(url, '_blank');
+  if (!win) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+export default api;
