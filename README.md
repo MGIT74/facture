@@ -4,6 +4,9 @@ Application interne de facturation : **Vue 3 + Node.js (Express) + MySQL**.
 Version simplifiée de Facturio (Next.js + Supabase) : **plusieurs entreprises** gérées par la même équipe (sans multi-tenant), et une **devise par document**.
 
 ## Fonctionnalités
+- **Espaces totalement isolés** : un administrateur peut créer d'autres administrateurs. Chacun crée ses propres entreprises, que personne d'autre ne voit (ni clients, ni produits, ni factures, ni utilisateurs). L'accès se règle entreprise par entreprise.
+- **Modèles de factures et de devis** (Paramètres > Modèles) : logo, couleur, disposition (classique, moderne, minimal), titre, colonnes Remise/TVA, coordonnées bancaires, notes, conditions et pied de page, avec aperçu en direct. Un modèle par défaut par type, appliqué aussi au PDF.
+- **Paramètres** : modèles, utilisateurs (création, rôles, accès par entreprise, mot de passe) et « Mon compte » (nom, mot de passe).
 - **Interface moderne** : mode sombre et mode clair (bouton en haut à droite, choix mémorisé, sinon réglage du système), accent bleu Apple, recherche rapide (⌘K / Ctrl+K).
 - **Plusieurs entreprises** : chacune a ses clients, produits, devis, factures, préfixes et numérotation. On change d'entreprise depuis le menu de la barre latérale.
 - **Devises** : EUR, USD, GBP, CHF, CAD, AUD, MAD, TND, DZD, XOF, XAF, ZAR. Chaque entreprise a une devise par défaut, modifiable sur chaque devis ou facture (le PDF et le tableau de bord suivent).
@@ -63,8 +66,8 @@ cp .env.docker.example .env && docker compose up -d --build
 database/schema.sql          schéma MySQL
 backend/src/
   index.js                   serveur Express
-  routes/                    auth, companies, crud (clients, produits), documents (factures + devis),
-                             payments, dashboard
+  routes/                    auth, companies, users, templates, crud (clients, produits),
+                             documents (factures + devis), payments, dashboard
   migrate.js                 migrations automatiques de la base
   pdf.js                     génération des PDF (pdfkit)
   utils.js                   calcul des totaux, helpers
@@ -75,10 +78,14 @@ frontend/src/
 
 ## Mise à jour de la base
 Au démarrage, le backend applique automatiquement les migrations nécessaires (`backend/src/migrate.js`).
-Une base créée avec l'ancienne version (une seule entreprise) est convertie sans perte : l'ancienne entreprise devient l'entreprise n°1,
-ses données et sa numérotation sont conservées.
+Une base créée avec une ancienne version est convertie sans perte (données et numérotation conservées).
+À la mise à jour vers les espaces isolés, les comptes existants gardent l'accès à toutes les entreprises existantes.
 
 ## Ajouter un utilisateur
+Depuis l'application : **Paramètres > Utilisateurs > Nouveau compte** (rôle, mot de passe, entreprises accessibles).
+Un administrateur sans entreprise cochée démarre avec un espace vide et crée la sienne : elle est invisible pour les autres.
+
+En ligne de commande (outil d'exploitation, donne accès à **toutes** les entreprises existantes) :
 ```bash
 cd backend && npm run create-user -- collegue@exemple.fr "Prénom Nom" motdepasse user
 ```

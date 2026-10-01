@@ -13,5 +13,11 @@ await pool.query(
   'INSERT INTO users (email, name, password_hash, role) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name), password_hash = VALUES(password_hash), role = VALUES(role)',
   [email.toLowerCase(), name, hash, role],
 );
-console.log(`Utilisateur ${email} (${role}) créé / mis à jour.`);
+// Ce script (outil d'exploitation) donne accès à toutes les entreprises existantes.
+// Pour créer des comptes isolés, utilise Paramètres > Utilisateurs dans l'application.
+await pool.query(
+  'INSERT IGNORE INTO user_companies (user_id, company_id) SELECT u.id, c.id FROM users u CROSS JOIN companies c WHERE u.email = ?',
+  [email.toLowerCase()],
+);
+console.log(`Utilisateur ${email} (${role}) créé / mis à jour, avec accès à toutes les entreprises.`);
 await pool.end();

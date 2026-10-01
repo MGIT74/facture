@@ -16,12 +16,13 @@ const base = computed(() => (isInvoice.value ? 'invoices' : 'quotes'));
 const dateKey = computed(() => (isInvoice.value ? 'due_date' : 'valid_until'));
 
 const clients = ref([]);
+const templates = ref([]);
 const items = ref([]);
 const error = ref('');
 const saving = ref(false);
 const ready = ref(false);
 const dateTouched = ref(false);
-const form = ref({ client_id: '', currency: 'EUR', issue_date: todayISO(), due_date: '', valid_until: '', notes: '', terms: '', lines: [] });
+const form = ref({ client_id: '', template_id: null, currency: 'EUR', issue_date: todayISO(), due_date: '', valid_until: '', notes: '', terms: '', lines: [] });
 
 // Montants affichés dans la devise du document
 const eur = (n) => money(n, form.value.currency);
@@ -33,19 +34,23 @@ const newLine = () => ({
 });
 
 onMounted(async () => {
-  const [c, i] = await Promise.all([api.get('/clients'), api.get('/items')]);
-  clients.value = c.data; items.value = i.data;
+  const [c, i, tp] = await Promise.all([api.get('/clients'), api.get('/items'), api.get('/templates', { params: { kind: props.type } })]);
+  clients.value = c.data; items.value = i.data; templates.value = tp.data;
 
   if (props.id) {
     const d = (await api.get(`/${base.value}/${props.id}`)).data;
     if (d.status !== 'draft') { toast('Seul un brouillon peut être modifié', 'err'); return router.replace(`/${base.value}/${props.id}`); }
     form.value = {
-      client_id: d.client_id, currency: d.currency, issue_date: d.issue_date, due_date: d.due_date || '', valid_until: d.valid_until || '',
+      client_id: d.client_id, template_id: d.template_id, currency: d.currency, issue_date: d.issue_date, due_date: d.due_date || '', valid_until: d.valid_until || '',
       notes: d.notes || '', terms: d.terms || '', lines: d.lines.map((l) => ({ ...l })),
     };
     dateTouched.value = true;
   } else {
-    form.value.terms = settings.value?.default_terms || '';
+    // Modèle par défaut du type de document : il fournit notes et conditions pré-remplies
+    const def = templates.value.find((x) => x.is_default);
+    form.value.template_id = def?.id ?? null;
+    form.value.notes = def?.notes || '';
+    form.value.terms = def?.terms || settings.value?.default_terms || '';
     form.value.currency = settings.value?.default_currency || 'EUR';
     form.value.lines = [newLine()];
     if (route.query.client) form.value.client_id = Number(route.query.client);
@@ -59,6 +64,14 @@ function applyDefaultDate() {
   form.value[dateKey.value] = addDaysISO(form.value.issue_date, days);
 }
 watch(() => form.value.issue_date, () => { if (!dateTouched.value && settings.value) applyDefaultDate(); });
+
+// Changer de modèle : reprend ses notes et conditions s'il en définit
+function onTemplate() {
+  const tp = templates.value.find((x) => x.id === form.value.template_id);
+  if (!tp) return;
+  if (tp.notes) form.value.notes = tp.notes;
+  if (tp.terms) form.value.terms = tp.terms;
+}
 
 function pickItem(line) {
   const it = items.value.find((x) => x.id === line.item_id);
@@ -110,6 +123,13 @@ async function save() {
         <div class="field">
           <label for="currency">Devise</label>
           <select id="currency" v-model="form.currency"><option v-for="c in CURRENCIES" :key="c.code" :value="c.code">{{ c.label }}</option></select>
+        </div>
+        <div v-if="templates.length" class="field">
+          <label for="tpl">Modèle</label>
+          <select id="tpl" v-model="form.template_id" @change="onTemplate">
+            <option :value="null">Apparence standard</option>
+            <option v-for="tp in templates" :key="tp.id" :value="tp.id">{{ tp.name }}{{ tp.is_default ? ' (par défaut)' : '' }}</option>
+          </select>
         </div>
         <div class="field"><label>Date d'émission</label><input v-model="form.issue_date" type="date" /></div>
         <div class="field">

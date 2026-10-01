@@ -14,6 +14,11 @@ const hasIndex = async (t, i) =>
   (await one('SELECT COUNT(*) n FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?', [t, i])).n > 0;
 
 export async function migrate() {
+  await migrateV2();
+  await migrateV3();
+}
+
+async function migrateV2() {
   if (!(await hasTable('settings'))) return;
   console.log('Migration v2 : passage au multi-entreprises…');
 
@@ -78,4 +83,41 @@ export async function migrate() {
 
   await pool.query('DROP TABLE settings'); // en dernier : marque la migration comme terminée
   console.log('Migration v2 terminée.');
+}
+
+/**
+ * v3 : accès par entreprise (isolation entre espaces), modèles de documents, créateur d'un compte.
+ * Les comptes existants gardent l'accès à toutes les entreprises existantes (comportement d'avant).
+ */
+async function migrateV3() {
+  if (!(await hasColumn('users', 'created_by'))) {
+    console.log('Migration v3 : isolation par entreprise et modèles de documents…');
+    await pool.query('ALTER TABLE users ADD COLUMN created_by INT UNSIGNED NULL');
+    await pool.query('ALTER TABLE users ADD CONSTRAINT fk_users_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL');
+  }
+  if (!(await hasTable('user_companies'))) {
+    await pool.query(`CREATE TABLE user_companies (
+      user_id INT UNSIGNED NOT NULL, company_id INT UNSIGNED NOT NULL,
+      PRIMARY KEY (user_id, company_id),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE)`);
+    await pool.query('INSERT INTO user_companies (user_id, company_id) SELECT u.id, c.id FROM users u CROSS JOIN companies c');
+  }
+  if (!(await hasTable('document_templates'))) {
+    await pool.query(`CREATE TABLE document_templates (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, company_id INT UNSIGNED NOT NULL,
+      kind ENUM('invoice','quote') NOT NULL, name VARCHAR(120) NOT NULL, is_default TINYINT(1) NOT NULL DEFAULT 0,
+      layout ENUM('classic','modern','minimal') NOT NULL DEFAULT 'classic', accent CHAR(7) NOT NULL DEFAULT '#0071e3',
+      title VARCHAR(60), logo MEDIUMTEXT, show_discount TINYINT(1) NOT NULL DEFAULT 1, show_tax TINYINT(1) NOT NULL DEFAULT 1,
+      show_bank TINYINT(1) NOT NULL DEFAULT 1, notes TEXT, terms TEXT, footer TEXT,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE, INDEX (company_id, kind))`);
+  }
+  for (const t of ['quotes', 'invoices']) {
+    if (!(await hasColumn(t, 'template_id'))) {
+      await pool.query(`ALTER TABLE ${t} ADD COLUMN template_id INT UNSIGNED NULL AFTER currency`);
+      await pool.query(`ALTER TABLE ${t} ADD CONSTRAINT fk_${t}_template FOREIGN KEY (template_id) REFERENCES document_templates(id) ON DELETE SET NULL`);
+    }
+  }
 }

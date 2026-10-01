@@ -7,6 +7,7 @@ import { useTheme } from './stores/theme.js';
 import { toasts } from './utils/toast.js';
 import Icon from './components/Icon.vue';
 import BrandMark from './components/BrandMark.vue';
+import Onboarding from './components/Onboarding.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -32,11 +33,13 @@ watch(() => company.currentId, (now, before) => {
 
 const SECTIONS = {
   '': 'Tableau de bord', invoices: 'Factures', quotes: 'Devis', clients: 'Clients',
-  items: 'Produits et services', payments: 'Paiements', settings: 'Entreprises',
+  items: 'Produits et services', payments: 'Paiements', companies: 'Entreprises', settings: 'Paramètres',
 };
 const crumbs = computed(() => {
   const [a, b] = route.path.split('/').filter(Boolean);
-  const sub = !b ? null : b === 'new' ? 'Nouveau' : route.path.endsWith('/edit') ? 'Modifier' : 'Détail';
+  const SETTINGS = { templates: 'Modèles de documents', users: 'Utilisateurs', account: 'Mon compte' };
+  const sub = !b ? null : a === 'settings' ? SETTINGS[b] : b === 'new' ? 'Nouveau' : route.path.endsWith('/edit') ? 'Modifier' : 'Détail';
+  if (company.ready && !company.list.length) return { section: 'Bienvenue', sub: null };
   return { section: SECTIONS[a || ''] || '', sub };
 });
 const initials = computed(() => (auth.user?.name || '?').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase());
@@ -75,7 +78,7 @@ function logout() {
         </select>
       </div>
 
-      <nav aria-label="Navigation principale">
+      <nav v-if="company.list.length" aria-label="Navigation principale">
         <div class="nav-group">
           <div class="nav-label">Général</div>
           <router-link to="/" class="nav-item" active-class="" exact-active-class="active"><span class="nav-ico"><Icon name="home" /></span>Tableau de bord</router-link>
@@ -90,7 +93,8 @@ function logout() {
         </div>
         <div class="nav-group">
           <div class="nav-label">Administration</div>
-          <router-link to="/settings" class="nav-item" active-class="active"><span class="nav-ico"><Icon name="building" /></span>Entreprises</router-link>
+          <router-link to="/companies" class="nav-item" active-class="active"><span class="nav-ico"><Icon name="building" /></span>Entreprises</router-link>
+          <router-link to="/settings" class="nav-item" active-class="active"><span class="nav-ico"><Icon name="gear" /></span>Paramètres</router-link>
         </div>
       </nav>
 
@@ -109,7 +113,7 @@ function logout() {
         <div class="crumbs">
           Facturio / <b>{{ crumbs.section }}</b><template v-if="crumbs.sub"> / {{ crumbs.sub }}</template>
         </div>
-        <form class="search" role="search" @submit.prevent="search">
+        <form v-if="company.list.length" class="search" role="search" @submit.prevent="search">
           <Icon name="search" />
           <input ref="searchInput" v-model="query" type="search" placeholder="Rechercher une facture ou un client" aria-label="Rechercher" />
           <span class="kbd">⌘K</span>
@@ -122,7 +126,8 @@ function logout() {
         </div>
       </header>
       <main class="main">
-        <router-view v-if="company.ready" :key="`${route.fullPath}|${company.currentId}`" />
+        <Onboarding v-if="company.ready && !company.list.length" />
+        <router-view v-else-if="company.ready" :key="`${route.path.startsWith('/settings') ? '/settings' : route.fullPath}|${company.currentId}`" />
       </main>
     </div>
   </div>

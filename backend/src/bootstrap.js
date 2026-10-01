@@ -17,9 +17,11 @@ export async function bootstrapAdmin() {
       const [[{ n }]] = await pool.query('SELECT COUNT(*) AS n FROM users');
       if (n > 0) return;
       const hash = await bcrypt.hash(password, 10);
-      await pool.query('INSERT INTO users (email, name, password_hash, role) VALUES (?, ?, ?, ?)', [
+      const [r] = await pool.query('INSERT INTO users (email, name, password_hash, role) VALUES (?, ?, ?, ?)', [
         email, process.env.ADMIN_NAME || 'Administrateur', hash, 'admin',
       ]);
+      // Le premier administrateur a accès aux entreprises déjà présentes
+      await pool.query('INSERT INTO user_companies (user_id, company_id) SELECT ?, id FROM companies', [r.insertId]);
       console.log(`Compte administrateur créé : ${email}`);
       return;
     } catch (err) {

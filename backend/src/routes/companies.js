@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { pool } from '../db.js';
+import { pool, withTransaction } from '../db.js';
 import { asyncHandler, HttpError, CURRENCIES } from '../utils.js';
-import { requireAdmin } from '../middleware.js';
+import { requireAdmin, companiesOf } from '../middleware.js';
 
 const FIELDS = ['company_name', 'legal_name', 'siret', 'vat_number', 'address', 'postal_code', 'city', 'country',
   'email', 'phone', 'iban', 'bic', 'invoice_prefix', 'quote_prefix', 'default_currency', 'default_tax_rate',
@@ -20,38 +20,49 @@ function pick(body, creating) {
   return data;
 }
 
-router.get('/', asyncHandler(async (_req, res) => {
-  const [rows] = await pool.query('SELECT * FROM companies ORDER BY company_name');
-  res.json(rows);
+/** L'entreprise doit faire partie de celles de l'utilisateur (sinon : comme si elle n'existait pas). */
+async function ownCompany(req) {
+  const company = (await companiesOf(req.user.id)).find((c) => c.id === Number(req.params.id));
+  if (!company) throw new HttpError(404, 'Entreprise introuvable');
+  return company;
+}
+
+// Uniquement les entreprises de l'utilisateur
+router.get('/', asyncHandler(async (req, res) => {
+  res.json((await companiesOf(req.user.id)).sort((a, b) => a.company_name.localeCompare(b.company_name)));
 }));
 
+// Un administrateur crée sa propre entreprise : il en devient membre, personne d'autre n'y a accès
 router.post('/', requireAdmin, asyncHandler(async (req, res) => {
-  const [r] = await pool.query('INSERT INTO companies SET ?', [pick(req.body || {}, true)]);
-  const [[row]] = await pool.query('SELECT * FROM companies WHERE id = ?', [r.insertId]);
+  const data = pick(req.body || {}, true);
+  const id = await withTransaction(async (conn) => {
+    const [r] = await conn.query('INSERT INTO companies SET ?', [data]);
+    await conn.query('INSERT INTO user_companies (user_id, company_id) VALUES (?, ?)', [req.user.id, r.insertId]);
+    return r.insertId;
+  });
+  const [[row]] = await pool.query('SELECT * FROM companies WHERE id = ?', [id]);
   res.status(201).json(row);
 }));
 
 router.put('/:id', requireAdmin, asyncHandler(async (req, res) => {
+  const company = await ownCompany(req);
   const data = pick(req.body || {}, false);
-  if (Object.keys(data).length) {
-    const [r] = await pool.query('UPDATE companies SET ? WHERE id = ?', [data, req.params.id]);
-    if (!r.affectedRows) throw new HttpError(404, 'Entreprise introuvable');
-  }
-  const [[row]] = await pool.query('SELECT * FROM companies WHERE id = ?', [req.params.id]);
-  if (!row) throw new HttpError(404, 'Entreprise introuvable');
+  if (Object.keys(data).length) await pool.query('UPDATE companies SET ? WHERE id = ?', [data, company.id]);
+  const [[row]] = await pool.query('SELECT * FROM companies WHERE id = ?', [company.id]);
   res.json(row);
 }));
 
 router.delete('/:id', requireAdmin, asyncHandler(async (req, res) => {
-  const [[{ n }]] = await pool.query('SELECT COUNT(*) AS n FROM companies');
-  if (n <= 1) throw new HttpError(409, 'Impossible de supprimer la dernière entreprise');
+  const company = await ownCompany(req);
   try {
-    await pool.query('DELETE FROM counters WHERE company_id = ?', [req.params.id]);
-    const [r] = await pool.query('DELETE FROM companies WHERE id = ?', [req.params.id]);
-    if (!r.affectedRows) throw new HttpError(404, 'Entreprise introuvable');
+    // Dans une transaction : si l'entreprise contient des données, rien n'est supprimé (numérotation comprise)
+    await withTransaction(async (conn) => {
+      await conn.query('DELETE FROM counters WHERE company_id = ?', [company.id]);
+      await conn.query('DELETE FROM companies WHERE id = ?', [company.id]);
+    });
   } catch (e) {
     if (e.code === 'ER_ROW_IS_REFERENCED_2') {
-      throw new HttpError(409, 'Cette entreprise contient encore des clients, produits, devis ou factures : supprime-les d\'abord.');
+      throw new HttpError(409, "Cette entreprise contient encore des clients, produits, devis ou factures : supprime-les d'abord.");
     }
     throw e;
   }

@@ -44,6 +44,17 @@ async function assertClient(conn, companyId, clientId) {
   if (!c) throw new HttpError(400, "Ce client n'appartient pas à cette entreprise");
 }
 
+/** Modèle choisi (de cette entreprise et du bon type), sinon le modèle par défaut du type, sinon aucun (apparence standard). */
+async function resolveTemplate(db, companyId, kind, templateId) {
+  if (templateId) {
+    const [[t]] = await db.query('SELECT * FROM document_templates WHERE id = ? AND company_id = ? AND kind = ?', [templateId, companyId, kind]);
+    if (!t) throw new HttpError(400, "Ce modèle n'existe pas pour cette entreprise");
+    return t;
+  }
+  const [[t]] = await db.query('SELECT * FROM document_templates WHERE company_id = ? AND kind = ? AND is_default = 1 LIMIT 1', [companyId, kind]);
+  return t || null;
+}
+
 async function insertLines(conn, cfg, docId, lines) {
   for (const l of lines) {
     await conn.query(`INSERT INTO ${cfg.lines} SET ?`, [{ ...l, [cfg.fk]: docId }]);
@@ -58,18 +69,20 @@ async function createDocument(conn, kind, company, body, extra = {}) {
   const year = Number(issue.slice(0, 4));
   const defaultDays = kind === 'invoice' ? company.payment_terms_days : 30;
   const t = computeTotals(body.lines);
+  const template = await resolveTemplate(conn, company.id, kind, body.template_id);
   const number = await nextNumber(conn, company.id, kind, company[cfg.prefixCol], year);
   const [r] = await conn.query(`INSERT INTO ${cfg.table} SET ?`, [{
     company_id: company.id,
     number,
     currency: body.currency || company.default_currency,
+    template_id: template?.id ?? null,
     client_id: body.client_id,
     status: 'draft',
     issue_date: issue,
     [cfg.dateCol]: body[cfg.dateCol] || addDays(issue, defaultDays),
     subtotal: t.subtotal, discount_total: t.discount_total, tax_total: t.tax_total, total: t.total,
-    notes: body.notes || null,
-    terms: body.terms ?? company.default_terms ?? null,
+    notes: body.notes !== undefined ? body.notes || null : template?.notes ?? null,
+    terms: body.terms !== undefined ? body.terms || null : template?.terms ?? company.default_terms ?? null,
     ...extra,
   }]);
   await insertLines(conn, cfg, r.insertId, t.lines);
@@ -85,7 +98,11 @@ async function loadDocument(kind, id, companyId) {
   const [lines] = await pool.query(`SELECT * FROM ${cfg.lines} WHERE ${cfg.fk} = ? ORDER BY sort_order, id`, [id]);
   const [[client]] = await pool.query('SELECT * FROM clients WHERE id = ?', [doc.client_id]);
   const [[company]] = await pool.query('SELECT * FROM companies WHERE id = ?', [doc.company_id]);
-  const result = { ...doc, lines, client, company };
+  const template = await resolveTemplate(pool, doc.company_id, kind, null).catch(() => null);
+  const own = doc.template_id
+    ? (await pool.query('SELECT * FROM document_templates WHERE id = ?', [doc.template_id]))[0][0]
+    : null;
+  const result = { ...doc, lines, client, company, template: own || template };
   if (kind === 'invoice') {
     const [payments] = await pool.query('SELECT * FROM payments WHERE invoice_id = ? ORDER BY payment_date, id', [id]);
     result.payments = payments;
@@ -138,8 +155,10 @@ export function documentsRouter(kind) {
       validate(body, cfg);
       await assertClient(conn, req.company.id, body.client_id);
       const t = computeTotals(body.lines);
+      const template = body.template_id === undefined ? { id: doc.template_id } : await resolveTemplate(conn, req.company.id, kind, body.template_id);
       await conn.query(`UPDATE ${cfg.table} SET ? WHERE id = ?`, [{
         client_id: body.client_id,
+        template_id: template?.id ?? null,
         currency: body.currency || doc.currency,
         issue_date: body.issue_date || doc.issue_date,
         [cfg.dateCol]: body[cfg.dateCol] || doc[cfg.dateCol],

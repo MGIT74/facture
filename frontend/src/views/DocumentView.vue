@@ -5,6 +5,7 @@ import api, { errMsg, openPdf } from '../api.js';
 import { money, dateFr, todayISO, METHODS } from '../utils/format.js';
 import { toast } from '../utils/toast.js';
 import StatusBadge from '../components/StatusBadge.vue';
+import DocumentSheet from '../components/DocumentSheet.vue';
 
 const props = defineProps({ type: String, id: String });
 const router = useRouter();
@@ -63,7 +64,6 @@ const removePayment = async (p) => {
 };
 
 const canPay = computed(() => isInvoice.value && doc.value && doc.value.status !== 'cancelled' && doc.value.balance_due > 0);
-const address = (o) => [o.address, [o.postal_code, o.city].filter(Boolean).join(' '), o.country].filter(Boolean);
 </script>
 
 <template>
@@ -82,76 +82,7 @@ const address = (o) => [o.address, [o.postal_code, o.city].filter(Boolean).join(
     </div>
 
     <div class="doc-layout">
-      <article class="sheet">
-        <div class="sheet-head">
-          <div>
-            <div class="co-name">{{ doc.company.company_name }}</div>
-            <div class="small muted">
-              <div v-if="doc.company.legal_name">{{ doc.company.legal_name }}</div>
-              <div v-for="l in address(doc.company)" :key="l">{{ l }}</div>
-              <div v-if="doc.company.siret">SIRET {{ doc.company.siret }}</div>
-              <div v-if="doc.company.vat_number">TVA {{ doc.company.vat_number }}</div>
-              <div v-if="doc.company.email">{{ doc.company.email }}</div>
-            </div>
-          </div>
-          <div class="doc-title">
-            <div class="kind">{{ isInvoice ? 'Facture' : 'Devis' }}</div>
-            <div class="muted">{{ doc.number }}</div>
-            <div class="small muted" style="margin-top: 8px">
-              <div>Devise : {{ doc.currency }}</div>
-              <div>Émise le {{ dateFr(doc.issue_date) }}</div>
-              <div v-if="isInvoice">Échéance le {{ dateFr(doc.due_date) }}</div>
-              <div v-else>Valable jusqu'au {{ dateFr(doc.valid_until) }}</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="parties">
-          <div class="to">
-            <div class="small muted">{{ isInvoice ? 'Facturé à' : 'Destinataire' }}</div>
-            <strong>{{ doc.client.name }}</strong>
-            <div v-for="l in address(doc.client)" :key="l">{{ l }}</div>
-            <div v-if="doc.client.vat_number" class="small muted">TVA {{ doc.client.vat_number }}</div>
-          </div>
-        </div>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr><th>Description</th><th class="num">Qté</th><th class="num">P.U. HT</th><th class="num">Remise</th><th class="num">TVA</th><th class="num">Total HT</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="l in doc.lines" :key="l.id">
-                <td>{{ l.description }}</td>
-                <td class="num">{{ l.quantity }}</td>
-                <td class="num">{{ eur(l.unit_price) }}</td>
-                <td class="num">{{ l.discount_rate ? `${l.discount_rate} %` : '' }}</td>
-                <td class="num">{{ l.tax_rate }} %</td>
-                <td class="num">{{ eur(l.line_total) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="totals">
-          <div><span class="muted">Total HT</span><span>{{ eur(doc.subtotal) }}</span></div>
-          <div><span class="muted">TVA</span><span>{{ eur(doc.tax_total) }}</span></div>
-          <div class="ttc"><span>Total TTC</span><span>{{ eur(doc.total) }}</span></div>
-          <template v-if="isInvoice && doc.amount_paid > 0">
-            <div><span class="muted">Déjà réglé</span><span>{{ eur(doc.amount_paid) }}</span></div>
-            <div v-if="doc.balance_due > 0" class="due"><span>Reste à payer</span><span>{{ eur(doc.balance_due) }}</span></div>
-          </template>
-        </div>
-
-        <div v-if="doc.notes || doc.terms || (isInvoice && doc.company.iban)" class="foot">
-          <div v-if="doc.notes"><h3>Notes</h3><p>{{ doc.notes }}</p></div>
-          <div v-if="doc.terms"><h3>Conditions</h3><p>{{ doc.terms }}</p></div>
-          <div v-if="isInvoice && doc.company.iban">
-            <h3>Règlement par virement</h3>
-            <p>IBAN {{ doc.company.iban }}<template v-if="doc.company.bic">{{ '\n' }}BIC {{ doc.company.bic }}</template></p>
-          </div>
-        </div>
-      </article>
+      <DocumentSheet :doc="doc" :kind="type" />
 
       <aside class="side-panel">
         <div class="panel">

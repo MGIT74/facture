@@ -8,7 +8,9 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(190) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   role ENUM('admin','user') NOT NULL DEFAULT 'user',
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_by INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- Entreprises : l'app gère plusieurs entreprises (chacune avec ses clients, produits, devis, factures)
@@ -36,6 +38,16 @@ CREATE TABLE IF NOT EXISTS companies (
 );
 INSERT INTO companies (id, company_name)
   SELECT 1, 'Mon entreprise' FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM companies);
+
+-- Accès : un utilisateur ne voit que les entreprises auxquelles il appartient.
+-- Deux espaces sans entreprise en commun sont totalement isolés l'un de l'autre.
+CREATE TABLE IF NOT EXISTS user_companies (
+  user_id INT UNSIGNED NOT NULL,
+  company_id INT UNSIGNED NOT NULL,
+  PRIMARY KEY (user_id, company_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+);
 
 -- Compteurs de numérotation : un par entreprise, par type et par année (FAC-2026-0001).
 -- Incrément atomique dans une transaction : pas de doublon possible.
@@ -80,11 +92,35 @@ CREATE TABLE IF NOT EXISTS items (
   INDEX (company_id, name)
 );
 
+-- Modèles de factures et de devis (apparence et textes), propres à chaque entreprise
+CREATE TABLE IF NOT EXISTS document_templates (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  company_id INT UNSIGNED NOT NULL,
+  kind ENUM('invoice','quote') NOT NULL,
+  name VARCHAR(120) NOT NULL,
+  is_default TINYINT(1) NOT NULL DEFAULT 0,
+  layout ENUM('classic','modern','minimal') NOT NULL DEFAULT 'classic',
+  accent CHAR(7) NOT NULL DEFAULT '#0071e3',
+  title VARCHAR(60),
+  logo MEDIUMTEXT,
+  show_discount TINYINT(1) NOT NULL DEFAULT 1,
+  show_tax TINYINT(1) NOT NULL DEFAULT 1,
+  show_bank TINYINT(1) NOT NULL DEFAULT 1,
+  notes TEXT,
+  terms TEXT,
+  footer TEXT,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  INDEX (company_id, kind)
+);
+
 CREATE TABLE IF NOT EXISTS quotes (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   company_id INT UNSIGNED NOT NULL,
   number VARCHAR(40) NOT NULL,
   currency CHAR(3) NOT NULL DEFAULT 'EUR',
+  template_id INT UNSIGNED NULL,
   client_id INT UNSIGNED NOT NULL,
   status ENUM('draft','sent','accepted','rejected','invoiced') NOT NULL DEFAULT 'draft',
   issue_date DATE NOT NULL,
@@ -99,6 +135,7 @@ CREATE TABLE IF NOT EXISTS quotes (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (company_id) REFERENCES companies(id),
   FOREIGN KEY (client_id) REFERENCES clients(id),
+  FOREIGN KEY (template_id) REFERENCES document_templates(id) ON DELETE SET NULL,
   UNIQUE KEY uq_quotes_company_number (company_id, number),
   INDEX (status), INDEX (issue_date)
 );
@@ -123,6 +160,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   company_id INT UNSIGNED NOT NULL,
   number VARCHAR(40) NOT NULL,
   currency CHAR(3) NOT NULL DEFAULT 'EUR',
+  template_id INT UNSIGNED NULL,
   client_id INT UNSIGNED NOT NULL,
   quote_id INT UNSIGNED NULL,
   status ENUM('draft','sent','paid','cancelled') NOT NULL DEFAULT 'draft',
@@ -140,6 +178,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (company_id) REFERENCES companies(id),
   FOREIGN KEY (client_id) REFERENCES clients(id),
+  FOREIGN KEY (template_id) REFERENCES document_templates(id) ON DELETE SET NULL,
   FOREIGN KEY (quote_id) REFERENCES quotes(id) ON DELETE SET NULL,
   UNIQUE KEY uq_invoices_company_number (company_id, number),
   INDEX (status), INDEX (issue_date), INDEX (due_date)

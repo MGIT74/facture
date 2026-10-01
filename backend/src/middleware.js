@@ -2,16 +2,20 @@ import jwt from 'jsonwebtoken';
 import { HttpError } from './utils.js';
 import { pool } from './db.js';
 
-export function requireAuth(req, _res, next) {
-  const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-  if (!token) return next(new HttpError(401, 'Connexion requise'));
+/** Vérifie le jeton puis relit le compte en base : un compte supprimé ou rétrogradé perd ses droits immédiatement. */
+export async function requireAuth(req, _res, next) {
   try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    const header = req.headers.authorization || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    if (!token) throw new HttpError(401, 'Connexion requise');
+    let payload;
+    try { payload = jwt.verify(token, process.env.JWT_SECRET); }
+    catch { throw new HttpError(401, 'Session expirée, reconnecte-toi'); }
+    const [[user]] = await pool.query('SELECT id, name, email, role FROM users WHERE id = ?', [payload.id]);
+    if (!user) throw new HttpError(401, 'Compte introuvable');
+    req.user = user;
     next();
-  } catch {
-    next(new HttpError(401, 'Session expirée, reconnecte-toi'));
-  }
+  } catch (e) { next(e); }
 }
 
 export function requireAdmin(req, _res, next) {
@@ -19,14 +23,24 @@ export function requireAdmin(req, _res, next) {
   next();
 }
 
-/** Détermine l'entreprise courante via l'en-tête X-Company-Id (par défaut : la première). */
+/** Entreprises auxquelles l'utilisateur a accès (et uniquement celles-ci). */
+export async function companiesOf(userId) {
+  const [rows] = await pool.query(
+    `SELECT c.* FROM companies c JOIN user_companies uc ON uc.company_id = c.id WHERE uc.user_id = ? ORDER BY c.id`, [userId]);
+  return rows;
+}
+
+/**
+ * Entreprise courante (en-tête X-Company-Id), obligatoirement parmi celles de l'utilisateur.
+ * Sans en-tête : la première. C'est ce contrôle qui garantit l'isolement entre espaces.
+ */
 export async function withCompany(req, _res, next) {
   try {
+    const mine = await companiesOf(req.user.id);
+    if (!mine.length) throw new HttpError(409, "Aucune entreprise : crées-en une d'abord");
     const raw = Number(req.headers['x-company-id']);
-    const [[company]] = raw
-      ? await pool.query('SELECT * FROM companies WHERE id = ?', [raw])
-      : await pool.query('SELECT * FROM companies ORDER BY id LIMIT 1');
-    if (!company) throw new HttpError(raw ? 400 : 409, raw ? 'Entreprise inconnue' : "Aucune entreprise : crées-en une d'abord");
+    const company = raw ? mine.find((c) => c.id === raw) : mine[0];
+    if (!company) throw new HttpError(403, 'Accès refusé à cette entreprise');
     req.company = company;
     next();
   } catch (e) { next(e); }

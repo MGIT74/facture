@@ -5,10 +5,12 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import cors from 'cors';
 import { pool } from './db.js';
-import { requireAuth, withCompany, errorHandler } from './middleware.js';
+import { requireAuth, requireAdmin, withCompany, errorHandler } from './middleware.js';
 import authRouter from './routes/auth.js';
 import { clientsRouter, itemsRouter } from './routes/crud.js';
 import companiesRouter from './routes/companies.js';
+import usersRouter from './routes/users.js';
+import templatesRouter from './routes/templates.js';
 import { documentsRouter } from './routes/documents.js';
 import paymentsRouter from './routes/payments.js';
 import dashboardRouter from './routes/dashboard.js';
@@ -22,7 +24,7 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16) {
 
 const app = express();
 app.use(cors(process.env.CORS_ORIGIN ? { origin: process.env.CORS_ORIGIN } : {}));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '2mb' })); // 2 Mo : un logo de modèle est envoyé en base64
 
 app.get('/api/health', async (_req, res) => {
   await pool.query('SELECT 1');
@@ -31,9 +33,11 @@ app.get('/api/health', async (_req, res) => {
 
 app.use('/api/auth', authRouter);
 app.use('/api/companies', requireAuth, companiesRouter);
+app.use('/api/users', requireAuth, requireAdmin, usersRouter);
 // Les routes suivantes travaillent sur l'entreprise courante (en-tête X-Company-Id)
 app.use('/api/clients', requireAuth, withCompany, clientsRouter());
 app.use('/api/items', requireAuth, withCompany, itemsRouter());
+app.use('/api/templates', requireAuth, withCompany, templatesRouter);
 app.use('/api/invoices', requireAuth, withCompany, documentsRouter('invoice'));
 app.use('/api/quotes', requireAuth, withCompany, documentsRouter('quote'));
 app.use('/api/payments', requireAuth, withCompany, paymentsRouter);
