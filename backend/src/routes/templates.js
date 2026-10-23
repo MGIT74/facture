@@ -7,7 +7,7 @@ const router = Router();
 const KINDS = ['invoice', 'quote'];
 const LAYOUTS = ['classic', 'modern', 'minimal'];
 const LOGO = /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/;
-const LIST_COLS = `id, kind, name, is_default, layout, accent, title, show_discount, show_tax, show_bank, notes, terms, footer,
+const LIST_COLS = `id, kind, name, is_default, layout, accent, title, show_discount, show_tax, show_bank, show_signature, notes, terms, footer,
   (logo IS NOT NULL) AS has_logo, created_at, updated_at`;
 
 const text = (v, max) => {
@@ -36,7 +36,7 @@ function clean(body, creating) {
     d.accent = body.accent.toLowerCase();
   }
   const title = text(body.title, 60); if (title !== undefined) d.title = title;
-  for (const f of ['show_discount', 'show_tax', 'show_bank']) { const v = bool(body[f]); if (v !== undefined) d[f] = v; }
+  for (const f of ['show_discount', 'show_tax', 'show_bank', 'show_signature']) { const v = bool(body[f]); if (v !== undefined) d[f] = v; }
   for (const [f, max] of [['notes', 4000], ['terms', 4000], ['footer', 1000]]) { const v = text(body[f], max); if (v !== undefined) d[f] = v; }
   if (body.logo !== undefined) {
     if (body.logo === null || body.logo === '') d.logo = null;

@@ -17,6 +17,7 @@ export async function migrate() {
   await migrateV2();
   await migrateV3();
   await migrateV4();
+  await migrateV5();
 }
 
 async function migrateV2() {
@@ -120,6 +121,14 @@ async function migrateV3() {
       await pool.query(`ALTER TABLE ${t} ADD COLUMN template_id INT UNSIGNED NULL AFTER currency`);
       await pool.query(`ALTER TABLE ${t} ADD CONSTRAINT fk_${t}_template FOREIGN KEY (template_id) REFERENCES document_templates(id) ON DELETE SET NULL`);
     }
+  }
+}
+
+/** v5 : cadre « Bon pour accord » à signer sur les devis. */
+async function migrateV5() {
+  if (!(await hasColumn('document_templates', 'show_signature'))) {
+    console.log('Migration v5 : cadre de signature des devis…');
+    await pool.query('ALTER TABLE document_templates ADD COLUMN show_signature TINYINT(1) NOT NULL DEFAULT 1 AFTER show_bank');
   }
 }
 

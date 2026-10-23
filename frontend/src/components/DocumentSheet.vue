@@ -5,7 +5,7 @@ import { money, dateFr } from '../utils/format.js';
 // Feuille de facture / devis, aux couleurs du modèle choisi (aussi utilisée pour l'aperçu des modèles)
 const props = defineProps({ doc: { type: Object, required: true }, kind: { type: String, default: 'invoice' }, template: Object });
 
-const DEFAULTS = { layout: 'classic', accent: '#0071e3', title: null, logo: null, show_discount: 1, show_tax: 1, show_bank: 1, footer: null };
+const DEFAULTS = { layout: 'classic', accent: '#0071e3', title: null, logo: null, show_discount: 1, show_tax: 1, show_bank: 1, show_signature: 1, footer: null };
 const t = computed(() => {
   const src = props.template || props.doc.template || {};
   return Object.fromEntries(Object.keys(DEFAULTS).map((k) => [k, src[k] ?? DEFAULTS[k]]));
@@ -94,6 +94,18 @@ const address = (o) => [o.address, [o.postal_code, o.city].filter(Boolean).join(
       <div v-if="isInvoice && t.show_bank && doc.company.iban">
         <h3>Règlement par virement</h3>
         <p>IBAN {{ doc.company.iban }}<template v-if="doc.company.bic">{{ '\n' }}BIC {{ doc.company.bic }}</template></p>
+      </div>
+    </div>
+    <div v-if="!isInvoice && t.show_signature" class="sign-box">
+      <div class="sign-left">
+        <h3>Bon pour accord</h3>
+        <p>Lu et approuvé, bon pour accord.</p>
+        <div class="sign-line"><span>Date :</span><i></i></div>
+        <div class="sign-line"><span>Nom et qualité :</span><i></i></div>
+      </div>
+      <div class="sign-right">
+        <h3>Signature du client</h3>
+        <p>précédée de la mention « Lu et approuvé »</p>
       </div>
     </div>
     <div v-if="t.footer" class="page-foot">{{ t.footer }}</div>

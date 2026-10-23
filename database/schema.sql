@@ -157,6 +157,7 @@ CREATE TABLE IF NOT EXISTS document_templates (
   show_discount TINYINT(1) NOT NULL DEFAULT 1,
   show_tax TINYINT(1) NOT NULL DEFAULT 1,
   show_bank TINYINT(1) NOT NULL DEFAULT 1,
+  show_signature TINYINT(1) NOT NULL DEFAULT 1,
   notes TEXT,
   terms TEXT,
   footer TEXT,

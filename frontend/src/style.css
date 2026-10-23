@@ -392,3 +392,17 @@ input[type='color'] { width: 38px; height: 30px; padding: 2px; border-radius: 8p
 
 .cur-cards > .panel + .panel { margin-top: 0; }
 .nowrap { white-space: nowrap; }
+
+/* Cadre « Bon pour accord » des devis */
+.sheet .sign-box { display: grid; grid-template-columns: 1fr 1fr; margin-top: 28px; border: 1px solid var(--line); border-radius: 10px; min-height: 132px; break-inside: avoid; }
+.sheet .sign-box h3 { margin: 0 0 4px; font-size: .9rem; }
+.sheet .sign-box p { margin: 0; color: var(--muted); font-size: .8rem; }
+.sheet .sign-left, .sheet .sign-right { padding: 14px 16px; }
+.sheet .sign-left { border-right: 1px solid var(--line); }
+.sheet .sign-line { display: flex; align-items: flex-end; gap: 8px; margin-top: 16px; font-size: .8rem; color: var(--muted); }
+.sheet .sign-line i { flex: 1; border-bottom: 1px solid var(--muted); height: 1em; }
+@media (max-width: 640px) {
+  .sheet .sign-box { grid-template-columns: 1fr; }
+  .sheet .sign-left { border-right: 0; border-bottom: 1px solid var(--line); }
+  .sheet .sign-right { min-height: 90px; }
+}

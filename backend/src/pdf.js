@@ -8,7 +8,7 @@ const dateFr = (s) => (s ? s.split('-').reverse().join('/') : '');
 const num = (n) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(n).replace(/[\u202f\u00a0]/g, ' ');
 
 const INK = '#1c1c1e', MUTED = '#6e6e73', LINE = '#d9dfe3';
-const DEFAULTS = { layout: 'classic', accent: '#0071e3', title: null, logo: null, show_discount: 1, show_tax: 1, show_bank: 1, footer: null };
+const DEFAULTS = { layout: 'classic', accent: '#0071e3', title: null, logo: null, show_discount: 1, show_tax: 1, show_bank: 1, show_signature: 1, footer: null };
 
 /** Apparence du document : le modèle choisi, complété par les valeurs standard. */
 function theme(template) {
@@ -191,6 +191,26 @@ export function renderPdf(res, kind, doc) {
   block('Notes', doc.notes);
   block('Conditions', doc.terms);
   if (isInvoice && t.show_bank && co.iban) block('Règlement par virement', `IBAN ${co.iban}${co.bic ? `\nBIC ${co.bic}` : ''}`);
+
+  // ------------------------------------------------------------------ « Bon pour accord » (devis)
+  if (!isInvoice && t.show_signature) {
+    const h = 118;
+    y += 6;
+    if (y + h > 770) { pdf.addPage(); y = 50; }
+    const w = right - left, mid = left + w * 0.5;
+    pdf.roundedRect(left, y, w, h, 6).lineWidth(0.8).strokeColor(LINE).stroke();
+    pdf.moveTo(mid, y + 10).lineTo(mid, y + h - 10).lineWidth(0.5).strokeColor(LINE).stroke();
+    pdf.fillColor(INK).font('Helvetica-Bold').fontSize(10).text('Bon pour accord', left + 14, y + 12, { width: w * 0.5 - 28 });
+    pdf.fillColor(MUTED).font('Helvetica').fontSize(8.5).text('Lu et approuvé, bon pour accord.', left + 14, y + 27, { width: w * 0.5 - 28 });
+    for (const [i, label] of ['Date :', 'Nom et qualité :'].entries()) {
+      const ly = y + 62 + i * 28;
+      pdf.fillColor(MUTED).font('Helvetica').fontSize(8.5).text(label, left + 14, ly, { lineBreak: false });
+      const lw = pdf.widthOfString(label);
+      pdf.moveTo(left + 14 + lw + 6, ly + 10).lineTo(mid - 14, ly + 10).lineWidth(0.5).strokeColor(MUTED).stroke();
+    }
+    pdf.fillColor(INK).font('Helvetica-Bold').fontSize(10).text('Signature du client', mid + 14, y + 12, { width: w * 0.5 - 28 });
+    pdf.fillColor(MUTED).font('Helvetica').fontSize(8.5).text('précédée de la mention « Lu et approuvé »', mid + 14, y + 27, { width: w * 0.5 - 28 });
+  }
 
   pdf.end();
 }

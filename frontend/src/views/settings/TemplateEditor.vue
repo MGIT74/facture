@@ -17,7 +17,7 @@ const error = ref('');
 
 const form = ref({
   name: '', kind: route.query.kind === 'quote' ? 'quote' : 'invoice', layout: 'classic', accent: '#0071e3', title: '',
-  logo: null, show_discount: true, show_tax: true, show_bank: true, notes: '', terms: '', footer: '', is_default: false,
+  logo: null, show_discount: true, show_tax: true, show_bank: true, show_signature: true, notes: '', terms: '', footer: '', is_default: false,
 });
 const LAYOUTS = [{ v: 'classic', l: 'Classique' }, { v: 'modern', l: 'Moderne' }, { v: 'minimal', l: 'Minimal' }];
 const SWATCHES = ['#0071e3', '#5e5ce6', '#30b0c7', '#248a3d', '#1c1c1e', '#d70015'];
@@ -29,7 +29,7 @@ onMounted(async () => {
     const t = (await api.get(`/templates/${id}`)).data;
     form.value = {
       ...t, title: t.title || '', notes: t.notes || '', terms: t.terms || '', footer: t.footer || '',
-      show_discount: !!t.show_discount, show_tax: !!t.show_tax, show_bank: !!t.show_bank, is_default: !!t.is_default,
+      show_discount: !!t.show_discount, show_tax: !!t.show_tax, show_bank: !!t.show_bank, show_signature: !!t.show_signature, is_default: !!t.is_default,
     };
   } catch (e) { error.value = errMsg(e); } finally { loading.value = false; }
 });
@@ -126,6 +126,7 @@ async function save() {
           <label class="check"><input v-model="form.show_discount" type="checkbox" />Afficher la colonne Remise</label>
           <label class="check"><input v-model="form.show_tax" type="checkbox" />Afficher la TVA (colonne et totaux)</label>
           <label v-if="isInvoice" class="check"><input v-model="form.show_bank" type="checkbox" />Afficher les coordonnées bancaires</label>
+          <label v-if="!isInvoice" class="check"><input v-model="form.show_signature" type="checkbox" />Afficher le cadre « Bon pour accord » à signer</label>
         </div>
         <h3 class="form-section">Textes pré-remplis</h3>
         <div class="field"><label>Notes</label><textarea v-model="form.notes" placeholder="Ex : Merci de votre confiance."></textarea></div>
